@@ -1,4 +1,4 @@
-// app/(tabs)/index.tsx - Complete Safe Version (No Custom Tailwind)
+// app/(tabs)/index.tsx - Updated to match real order service
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
 import { router } from 'expo-router';
@@ -9,13 +9,51 @@ import { apiService } from '../../services/api';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { CustomAlert } from '../../components/CustomAlert';
 import { PaymentCard } from '../../components/PaymentCard';
-import { getPendingOrders, FirebaseOrder } from '../../services/orderService';
+import { getOrders, Order } from '../../services/orderService'; // Updated import
+
+// Updated interface to match your real order service
+interface RealFirebaseOrder {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  address: string;
+  deliveryInstructions: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  total: number;
+  subtotal: number;
+  deliveryFee: number;
+  tipAmount: number;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    image: string;
+    variations: any[];
+    addons: any[];
+    subtotal: number;
+  }>;
+  notes: string;
+  date: Date;
+  createdAt: any;
+  updatedAt: any;
+  restaurantId: string;
+  cuisineName: string;
+  orderType: string;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+}
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [orders, setOrders] = useState<FirebaseOrder[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<FirebaseOrder | null>(null);
+  const [orders, setOrders] = useState<RealFirebaseOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<RealFirebaseOrder | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [alert, setAlert] = useState({
@@ -25,40 +63,44 @@ export default function HomeScreen() {
     type: 'info' as const,
   });
 
-  // Load orders from Firebase - NO useCallback to avoid dependency issues
+  // Load orders using your real service
   const loadOrders = async () => {
     try {
-      console.log('📊 Loading Firebase orders...');
-      const firebaseOrders = await getPendingOrders();
-      setOrders(firebaseOrders);
+      console.log('📊 Loading orders from real Firebase service...');
+      const allOrders = await getOrders();
+      
+      // Filter for pending orders that need payment
+      const pendingOrders = allOrders.filter(order => 
+        order.status === 'pending' && order.paymentStatus === 'unpaid'
+      );
+      
+      setOrders(pendingOrders);
       
       // Auto-select first order if none selected
-      if (firebaseOrders.length > 0 && !selectedOrder) {
-        const firstOrder = firebaseOrders[0];
+      if (pendingOrders.length > 0 && !selectedOrder) {
+        const firstOrder = pendingOrders[0];
         setSelectedOrder(firstOrder);
         setCustomerName(firstOrder.customerName);
         setCustomerEmail(firstOrder.customerPhone);
       }
       
-      console.log(`✅ Loaded ${firebaseOrders.length} orders`);
+      console.log(`✅ Loaded ${pendingOrders.length} pending orders from ${allOrders.length} total`);
     } catch (error) {
       console.error('❌ Error loading orders:', error);
     }
   };
 
-  // Simple useEffect - NO complex dependencies
   useEffect(() => {
     loadOrders();
   }, []);
 
-  // Simple refresh function - NO useCallback
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await apiService.checkHealth();
-      const firebaseOrders = await getPendingOrders();
-      setOrders(firebaseOrders);
-      
+      await Promise.all([
+        apiService.checkHealth(),
+        loadOrders()
+      ]);
       if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
         await Haptics.selectionAsync();
       }
@@ -87,7 +129,6 @@ export default function HomeScreen() {
     return true;
   };
 
-  // Payment handler - NO useCallback
   const handlePayment = async () => {
     if (!validateForm()) return;
 
@@ -98,14 +139,13 @@ export default function HomeScreen() {
     setLoading(true);
     
     try {
-      // Check backend health
       const isHealthy = await apiService.checkHealth();
       if (!isHealthy) {
         showAlert('Connection Error 🌐', 'Cannot connect to payment server.', 'error');
         return;
       }
 
-      // Convert Firebase order items to API format
+      // Use real order items with proper structure
       const orderItems = selectedOrder!.items.map(item => ({
         id: item.id,
         name: item.name,
@@ -113,7 +153,6 @@ export default function HomeScreen() {
         quantity: item.quantity
       }));
 
-      // Initiate CMI payment
       const response = await apiService.initiateCmiPayment(orderItems, {
         name: customerName,
         email: customerEmail,
@@ -124,7 +163,6 @@ export default function HomeScreen() {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
 
-        // Navigate to payment screen
         router.push({
           pathname: '/payment',
           params: {
@@ -148,10 +186,20 @@ export default function HomeScreen() {
     }
   };
 
-  const selectOrder = (order: FirebaseOrder) => {
+  const selectOrder = (order: RealFirebaseOrder) => {
     setSelectedOrder(order);
     setCustomerName(order.customerName);
     setCustomerEmail(order.customerPhone);
+  };
+
+  const formatOrderDate = (orderData: any) => {
+    if (orderData.createdAt?.toDate) {
+      return orderData.createdAt.toDate().toLocaleDateString();
+    }
+    if (orderData.date) {
+      return new Date(orderData.date).toLocaleDateString();
+    }
+    return new Date().toLocaleDateString();
   };
 
   return (
@@ -165,7 +213,7 @@ export default function HomeScreen() {
       }
     >
       <View className="p-6">
-        {/* Header - SAFE TAILWIND CLASSES */}
+        {/* Header */}
         <Animated.View 
           entering={FadeInDown.delay(100)}
           className="bg-blue-600 rounded-3xl p-8 mb-6"
@@ -176,7 +224,7 @@ export default function HomeScreen() {
                 CMI Payment v2.0
               </Text>
               <Text className="text-blue-100 text-base">
-                Firebase Orders Integration ✅
+                Real Firebase Orders ✅
               </Text>
             </View>
             <View className="bg-white/20 rounded-2xl p-4">
@@ -186,15 +234,15 @@ export default function HomeScreen() {
           
           <View className="bg-white/10 rounded-2xl p-4">
             <Text className="text-white font-semibold text-sm">
-              📦 {orders.length} Pending Orders • 🔥 Firebase Ready
+              📦 {orders.length} Pending Orders • 🔥 Live Data
             </Text>
             <Text className="text-blue-100 text-xs mt-1">
-              Real-time sync ✅ • Auto-payment ✅ • Sunmi printing 🖨️
+              Order Service ✅ • CMI Gateway ✅ • Sunmi Ready 🖨️
             </Text>
           </View>
         </Animated.View>
 
-        {/* Order Selection - SAFE TAILWIND CLASSES */}
+        {/* Order Selection */}
         {orders.length > 0 ? (
           <Animated.View 
             entering={FadeInDown.delay(200)}
@@ -233,12 +281,16 @@ export default function HomeScreen() {
                     <Text className="text-gray-600 dark:text-gray-400 text-sm mb-1">
                       📞 {order.customerPhone}
                     </Text>
-                    <Text className="text-gray-600 dark:text-gray-400 text-sm mb-2">
+                    <Text className="text-gray-600 dark:text-gray-400 text-sm mb-1">
                       📍 {order.address.length > 40 ? order.address.substring(0, 40) + '...' : order.address}
                     </Text>
-                    
+                    {order.cuisineName && (
+                      <Text className="text-gray-500 dark:text-gray-400 text-xs mb-1">
+                        🍽️ {order.cuisineName}
+                      </Text>
+                    )}
                     <Text className="text-gray-500 dark:text-gray-400 text-sm">
-                      📦 {order.items.length} items
+                      📦 {order.items.length} items • {Order.getStatusDisplay(order.status)}
                     </Text>
                   </View>
                   
@@ -247,21 +299,41 @@ export default function HomeScreen() {
                       {order.total.toFixed(2)} ₺
                     </Text>
                     <Text className="text-xs text-gray-500 dark:text-gray-400">
-                      {order.createdAt.toLocaleDateString()}
+                      {formatOrderDate(order)}
                     </Text>
+                    {order.deliveryFee > 0 && (
+                      <Text className="text-xs text-gray-500">
+                        +{order.deliveryFee.toFixed(2)} ₺ delivery
+                      </Text>
+                    )}
                   </View>
                 </View>
                 
                 {/* Order Items Preview */}
                 <View className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                   {order.items.slice(0, 2).map((item, index) => (
-                    <Text key={index} className="text-sm text-gray-600 dark:text-gray-400">
-                      • {item.quantity}x {item.name} - {(item.price * item.quantity).toFixed(2)} ₺
-                    </Text>
+                    <View key={index} className="flex-row justify-between items-center">
+                      <Text className="text-sm text-gray-600 dark:text-gray-400 flex-1">
+                        • {item.quantity}x {item.name}
+                        {item.variations.length > 0 && (
+                          <Text className="text-xs text-gray-500">
+                            {' '}({item.variations.map(v => v.name).join(', ')})
+                          </Text>
+                        )}
+                      </Text>
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-2">
+                        {item.subtotal.toFixed(2)} ₺
+                      </Text>
+                    </View>
                   ))}
                   {order.items.length > 2 && (
                     <Text className="text-sm text-gray-500 dark:text-gray-500">
                       ... and {order.items.length - 2} more items
+                    </Text>
+                  )}
+                  {order.notes && (
+                    <Text className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                      💬 {order.notes}
                     </Text>
                   )}
                 </View>
@@ -285,7 +357,7 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* Customer Information - SAFE TAILWIND CLASSES */}
+        {/* Customer Information */}
         <Animated.View 
           entering={FadeInDown.delay(300)}
           className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
@@ -334,7 +406,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Features & Security - SAFE TAILWIND CLASSES */}
+        {/* Features & Security */}
         <Animated.View 
           entering={FadeInDown.delay(500)}
           className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-3xl p-6 mt-6"

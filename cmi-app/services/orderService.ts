@@ -1,186 +1,264 @@
+// services/orderService.js
 import {
-  collection,
-  collectionGroup,
-  getDocs,
-  query,
-  where,
-  doc,
-  updateDoc,
-  serverTimestamp,
+    collection,
+    collectionGroup,
+    getDocs,
+    orderBy,
+    query,
+    doc,
+    getDoc,
+    updateDoc,
+    serverTimestamp,
+    where,
+    documentId,
+    Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-// Simple order type
-export interface FirebaseOrder {
-  id: string;
-  userId: string;
-  customerName: string;
-  customerPhone: string;
-  address: string;
-  status: string;
-  paymentStatus: string;
-  total: number;
-  items: Array<{
-    id: string;
-    name: string;
-    price: number;
-    quantity: number;
-  }>;
-  createdAt: Date;
-  notes?: string;
+// Helper function to extract coordinates from different possible formats
+function _getCoordinates(orderData) {
+    // Default coordinates (can be center of city or other default)
+    let coords = { latitude: 32.3373, longitude: -6.3498 }; // Default to Beni Mellal
+
+    // Try coordinates directly
+    if (orderData.coordinates) {
+        if (typeof orderData.coordinates.latitude === 'number' &&
+            typeof orderData.coordinates.longitude === 'number') {
+            return orderData.coordinates;
+        }
+    }
+
+    // Try deliveryLocation (from createOrder in customer app)
+    if (orderData.deliveryLocation) {
+        if (typeof orderData.deliveryLocation.latitude === 'number' &&
+            typeof orderData.deliveryLocation.longitude === 'number') {
+            return {
+                latitude: orderData.deliveryLocation.latitude,
+                longitude: orderData.deliveryLocation.longitude
+            };
+        }
+    }
+
+    // Try nested address object (from createOrder)
+    if (orderData.address && typeof orderData.address === 'object') {
+        if (typeof orderData.address.latitude === 'number' &&
+            typeof orderData.address.longitude === 'number') {
+            return {
+                latitude: orderData.address.latitude,
+                longitude: orderData.address.longitude
+            };
+        }
+    }
+
+    return coords;
 }
 
-/**
- * Get ALL orders first (for debugging)
- */
-export const getAllOrders = async (): Promise<FirebaseOrder[]> => {
-  try {
-    console.log('🔥 Loading ALL orders from Firebase (debug mode)...');
-    
-    // Simple query without filters first
-    const ordersQuery = collectionGroup(db, 'orders');
-    const snapshot = await getDocs(ordersQuery);
-    
-    console.log(`📊 Total documents found: ${snapshot.docs.length}`);
-    
-    const orders: FirebaseOrder[] = snapshot.docs.map(doc => {
-      const data = doc.data();
-      console.log(`📄 Document ${doc.id}:`, data);
-      
-      // Extract userId from document path
-      const pathSegments = doc.ref.path.split('/');
-      const userId = pathSegments[1];
-      
-      return {
-        id: doc.id,
-        userId,
-        customerName: data.customerName || 'Unknown Customer',
-        customerPhone: data.phoneNumber || data.customerPhone || '',
-        address: data.address || data.deliveryAddress || '',
-        status: data.status || 'pending',
-        paymentStatus: data.paymentStatus || 'unpaid',
-        total: Number(data.total || data.grandTotal || 0),
-        items: (data.items || []).map(item => ({
-          id: item.id || item.productId || '',
-          name: item.name || 'Unknown Item',
-          price: Number(item.price || item.priceAtPurchase || 0),
-          quantity: Number(item.quantity || 1)
-        })),
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        notes: data.notes || data.additionalNote || ''
-      };
-    });
+// Helper function to standardize items format
+function _standardizeItems(items) {
+    if (!Array.isArray(items)) return [];
 
-    console.log(`✅ Processed ${orders.length} orders`);
-    orders.forEach(order => {
-      console.log(`📦 Order ${order.id}: ${order.customerName} - ${order.status}/${order.paymentStatus} - ${order.total}₺`);
+    return items.map(item => {
+        return {
+            id: item.id || item.productId || '',
+            name: item.name || '',
+            price: Number(item.price || item.priceAtPurchase || 0),
+            quantity: Number(item.quantity || 1),
+            image: item.image?.uri || (typeof item.image === 'string' ? item.image : ''),
+            variations: Array.isArray(item.variations) ? item.variations :
+                (Array.isArray(item.selectedVariations) ? item.selectedVariations : []),
+            addons: Array.isArray(item.addons) ? item.addons :
+                (Array.isArray(item.selectedAddons) ? item.selectedAddons : []),
+            subtotal: Number(item.subtotal || (item.price * item.quantity) || 0)
+        };
     });
-    
-    return orders;
+}
 
-  } catch (error) {
-    console.error('❌ Error loading ALL orders:', error);
-    return [];
-  }
+// Order fields mapping
+export const Order = {
+    mapOrderFields(orderData) {
+        return {
+            // Basic fields
+            id: orderData.id || '',
+            userId: orderData.userId || '',
+            driverId: orderData.driverId || null,
+
+            // Customer details
+            customerName: orderData.customerName || '',
+            customerPhone: orderData.phoneNumber || orderData.customerPhone || '',
+
+            // Address handling
+            address: orderData.address?.address ||
+                orderData.deliveryAddress ||
+                (orderData.deliveryLocation ? orderData.deliveryLocation.address : '') || '',
+
+            // Delivery instructions
+            deliveryInstructions: orderData.address?.instructions ||
+                orderData.additionalNote ||
+                orderData.deliveryLocation?.instructions ||
+                orderData.notes || '',
+
+            // Coordinates
+            coordinates: _getCoordinates(orderData),
+
+            // Order status and payment
+            status: orderData.status || 'pending',
+            paymentStatus: orderData.paymentStatus || 'unpaid',
+            paymentMethod: orderData.paymentMethod || 'cash_on_delivery',
+
+            // Financial details
+            total: orderData.total || orderData.grandTotal || 0,
+            subtotal: orderData.subtotal || 0,
+            deliveryFee: orderData.deliveryFee || 0,
+            tipAmount: orderData.tipAmount || 0,
+
+            // Items
+            items: _standardizeItems(orderData.items || []),
+
+            // Additional info
+            notes: orderData.notes || orderData.additionalNote || '',
+            date: orderData.date || new Date(),
+            createdAt: orderData.createdAt,
+            updatedAt: orderData.updatedAt,
+
+            // Restaurant info
+            restaurantId: orderData.restaurantId || '',
+            cuisineName: orderData.cuisineName || '',
+
+            // Order type
+            orderType: orderData.orderType || orderData.deliveryOption || 'delivery'
+        };
+    },
+
+    // Helper methods for display
+    getStatusDisplay(status) {
+        switch (status) {
+            case 'pending': return 'En Attente';
+            case 'confirmed': return 'Confirmée';
+            case 'progress': return 'En Cours';
+            case 'completed': return 'Terminée';
+            case 'delivered': return 'Livrée';
+            case 'cancelled': return 'Annulée';
+            default: return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Inconnu';
+        }
+    }
 };
 
 /**
- * Get pending orders with simple filtering
+ * Get all orders from user subcollections
  */
-export const getPendingOrders = async (): Promise<FirebaseOrder[]> => {
-  try {
-    console.log('🔥 Loading pending orders from Firebase...');
-    
-    // First try to get all orders, then filter in code
-    const allOrders = await getAllOrders();
-    
-    // Filter in JavaScript instead of Firestore query
-    const pendingOrders = allOrders.filter(order => 
-      order.status === 'pending' && order.paymentStatus === 'unpaid'
-    );
-    
-    console.log(`✅ Found ${pendingOrders.length} pending orders out of ${allOrders.length} total`);
-    return pendingOrders;
+export const getOrders = async () => {
+    try {
+        console.log("[getOrders] Loading all orders from user subcollections...");
 
-  } catch (error) {
-    console.error('❌ Error loading pending orders:', error);
-    return [];
-  }
+        // Query all orders across user subcollections
+        const ordersQuery = query(collectionGroup(db, 'orders'));
+        const snapshot = await getDocs(ordersQuery);
+
+        const orders = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Extract userId from reference path
+            const pathSegments = doc.ref.path.split('/');
+            const userId = pathSegments[1]; // users/{userId}/orders/{orderId}
+
+            return Order.mapOrderFields({
+                ...data,
+                id: doc.id,
+                userId: userId
+            });
+        });
+
+        console.log(`[getOrders] ${orders.length} orders loaded`);
+        return orders;
+    } catch (error) {
+        console.error('Error getting orders:', error);
+        return [];
+    }
 };
 
 /**
- * Get orders from specific user (for testing)
+ * Get a specific order by user ID and order ID
  */
-export const getOrdersFromUser = async (userId: string): Promise<FirebaseOrder[]> => {
-  try {
-    console.log(`🔥 Loading orders from user ${userId}...`);
-    
-    const userOrdersRef = collection(db, 'users', userId, 'orders');
-    const snapshot = await getDocs(userOrdersRef);
-    
-    console.log(`📊 Found ${snapshot.docs.length} orders for user ${userId}`);
-    
-    const orders: FirebaseOrder[] = snapshot.docs.map(doc => {
-      const data = doc.data();
-      console.log(`📄 User order ${doc.id}:`, data);
-      
-      return {
-        id: doc.id,
-        userId,
-        customerName: data.customerName || 'Unknown Customer',
-        customerPhone: data.phoneNumber || data.customerPhone || '',
-        address: data.address || data.deliveryAddress || '',
-        status: data.status || 'pending',
-        paymentStatus: data.paymentStatus || 'unpaid',
-        total: Number(data.total || data.grandTotal || 0),
-        items: (data.items || []).map(item => ({
-          id: item.id || item.productId || '',
-          name: item.name || 'Unknown Item',
-          price: Number(item.price || item.priceAtPurchase || 0),
-          quantity: Number(item.quantity || 1)
-        })),
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        notes: data.notes || data.additionalNote || ''
-      };
+export const getOrderOnce = async (userId, orderId) => {
+    try {
+        if (!userId || !orderId) {
+            console.error('[getOrderOnce] Missing user ID or order ID');
+            return null;
+        }
+
+        // Get from user's orders collection
+        const orderRef = doc(db, 'users', userId, 'orders', orderId);
+        const orderSnap = await getDoc(orderRef);
+
+        if (!orderSnap.exists()) {
+            console.error(`[getOrderOnce] Order ${orderId} not found for user ${userId}`);
+            return null;
+        }
+
+        const data = orderSnap.data();
+        return Order.mapOrderFields({
+            ...data,
+            id: orderId,
+            userId
+        });
+    } catch (error) {
+        console.error(`[getOrderOnce] Error loading order:`, error);
+        return null;
+    }
+};
+
+/**
+ * Update order status
+ */
+export const updateOrderStatus = async (userId, orderId, newStatus, additionalData = {}) => {
+    try {
+        if (!userId || !orderId || !newStatus) {
+            console.error('[updateOrderStatus] Missing userId, orderId, or newStatus');
+            return false;
+        }
+
+        console.log(`[updateOrderStatus] Updating order ${orderId} for user ${userId} to status: ${newStatus}`);
+        const orderRef = doc(db, 'users', userId, 'orders', orderId);
+
+        // Update data with new status and any additional fields
+        const updateData = {
+            status: newStatus,
+            updatedAt: serverTimestamp(),
+            ...additionalData
+        };
+
+        await updateDoc(orderRef, updateData);
+        console.log(`[updateOrderStatus] Order status updated successfully to ${newStatus}`);
+        return true;
+    } catch (error) {
+        console.error(`[updateOrderStatus] Error updating order status:`, error);
+        return false;
+    }
+};
+
+/**
+ * Mark an order as in-progress (driver started delivery)
+ */
+export const startDelivery = async (userId, orderId) => {
+    return updateOrderStatus(userId, orderId, 'in-progress', {
+        startedAt: serverTimestamp()
     });
-
-    return orders;
-
-  } catch (error) {
-    console.error(`❌ Error loading orders from user ${userId}:`, error);
-    return [];
-  }
 };
 
 /**
- * Update order status after payment
+ * Mark an order as delivered
  */
-export const updateOrderPaymentStatus = async (
-  userId: string,
-  orderId: string,
-  success: boolean,
-  cmiOrderId?: string
-): Promise<boolean> => {
-  try {
-    console.log(`🔥 Updating order ${orderId} payment status...`);
-    
-    const orderRef = doc(db, 'users', userId, 'orders', orderId);
-    
-    const updateData = {
-      status: success ? 'confirmed' : 'cancelled',
-      paymentStatus: success ? 'paid' : 'failed',
-      updatedAt: serverTimestamp(),
-      ...(cmiOrderId && { cmiOrderId }),
-      ...(success && { paidAt: serverTimestamp() })
-    };
+export const markOrderAsDelivered = async (userId, orderId, deliveryData) => {
+    return updateOrderStatus(userId, orderId, 'delivered', {
+        deliveredAt: serverTimestamp(),
+        ...deliveryData
+    });
+};
 
-    await updateDoc(orderRef, updateData);
-    
-    console.log(`✅ Order ${orderId} updated successfully`);
-    return true;
-
-  } catch (error) {
-    console.error('❌ Error updating order:', error);
-    return false;
-  }
+/**
+ * Accept an order for delivery
+ */
+export const acceptOrder = async (userId, orderId) => {
+    return updateOrderStatus(userId, orderId, 'confirmed', {
+        acceptedAt: serverTimestamp()
+    });
 };
