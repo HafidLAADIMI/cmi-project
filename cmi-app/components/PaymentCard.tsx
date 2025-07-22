@@ -11,30 +11,30 @@ interface PaymentCardProps {
 
 export function PaymentCard({ total, onPress, loading = false, delay = 0 }: PaymentCardProps) {
   return (
-    <Animated.View 
+    <Animated.View
       entering={FadeInDown.delay(delay)}
       className="bg-gradient-to-br from-cmi-600 to-cmi-700 rounded-3xl p-8 shadow-cmi"
     >
-      {/* CMI Logo Area */}
+      {/* Zone Logo CMI */}
       <View className="flex-row items-center justify-between mb-6">
         <View>
-          <Text className="text-white/80 text-sm font-medium">Secure Payment via</Text>
-          <Text className="text-white text-2xl font-bold">CMI Gateway</Text>
+          <Text className="text-white/80 text-sm font-medium">Paiement Sécurisé via</Text>
+          <Text className="text-white text-2xl font-bold">Passerelle CMI</Text>
         </View>
         <View className="bg-white/20 rounded-2xl p-3">
           <Text className="text-3xl">🏦</Text>
         </View>
       </View>
 
-      {/* Amount Display */}
+      {/* Affichage du Montant */}
       <View className="bg-white/10 rounded-2xl p-6 mb-6 backdrop-blur-sm">
-        <Text className="text-white/80 text-sm font-medium mb-2">Total Amount</Text>
+        <Text className="text-white/80 text-sm font-medium mb-2">Montant Total</Text>
         <Text className="text-white text-4xl font-bold">
-          {total.toFixed(2)} <Text className="text-2xl">₺</Text>
+          {total.toFixed(2)} <Text className="text-2xl">DH</Text>
         </Text>
       </View>
 
-      {/* Security Features */}
+      {/* Fonctionnalités de Sécurité
       <View className="flex-row justify-between mb-6">
         <View className="items-center">
           <Text className="text-2xl mb-1">🔒</Text>
@@ -42,15 +42,16 @@ export function PaymentCard({ total, onPress, loading = false, delay = 0 }: Paym
         </View>
         <View className="items-center">
           <Text className="text-2xl mb-1">🛡️</Text>
-          <Text className="text-white/80 text-xs">SSL Protected</Text>
+          <Text className="text-white/80 text-xs">Protection SSL</Text>
         </View>
         <View className="items-center">
           <Text className="text-2xl mb-1">✅</Text>
-          <Text className="text-white/80 text-xs">PCI Compliant</Text>
+          <Text className="text-white/80 text-xs">Conforme PCI</Text>
         </View>
       </View>
+      */}
 
-      {/* Pay Button */}
+      {/* Bouton de Paiement */}
       <TouchableOpacity
         onPress={onPress}
         disabled={loading}
@@ -60,13 +61,13 @@ export function PaymentCard({ total, onPress, loading = false, delay = 0 }: Paym
           {loading ? (
             <>
               <View className="w-5 h-5 border-2 border-cmi-600 border-t-transparent rounded-full animate-spin mr-3" />
-              <Text className="text-cmi-700 font-bold text-lg">Connecting to CMI...</Text>
+              <Text className="text-cmi-700 font-bold text-lg">Connexion à CMI...</Text>
             </>
           ) : (
             <>
               <Text className="text-2xl mr-3">💳</Text>
               <Text className="text-cmi-700 font-bold text-lg">
-                Pay with CMI
+                Payer avec CMI
               </Text>
             </>
           )}

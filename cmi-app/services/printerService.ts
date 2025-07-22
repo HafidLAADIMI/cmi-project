@@ -3,14 +3,14 @@ import { CONFIG } from '../constants/config';
 import SunmiPrinter from '@mitsuharu/react-native-sunmi-printer-library';
 
 /**
- * Enhanced Sunmi Thermal Printer Service
+ * Service d'Impression Thermique Sunmi Amélioré
  * 
- * PRODUCTION READY: Real Sunmi implementation enabled
+ * PRÊT POUR LA PRODUCTION : Implémentation Sunmi réelle activée
  * 
- * Setup Instructions:
+ * Instructions de Configuration :
  * 1. npm install @mitsuharu/react-native-sunmi-printer-library
  * 2. expo prebuild --clean
- * 3. Test on real Sunmi device
+ * 3. Tester sur un vrai dispositif Sunmi
  */
 
 export interface ReceiptData {
@@ -47,127 +47,127 @@ class PrinterService {
   private isInitialized = false;
 
   /**
-   * Initialize printer service
+   * Initialiser le service d'impression
    */
   async initialize(): Promise<boolean> {
     try {
-      console.log('🖨️ Initializing Sunmi Printer Service...');
+      console.log('🖨️ Initialisation du Service d\'Impression Sunmi...');
       
-      // REAL SUNMI IMPLEMENTATION
+      // IMPLÉMENTATION SUNMI RÉELLE
       try {
         await SunmiPrinter.init();
         this.isInitialized = true;
-        console.log('✅ Sunmi printer initialized successfully');
+        console.log('✅ Imprimante Sunmi initialisée avec succès');
         return true;
       } catch (sunmiError) {
-        console.warn('⚠️ Sunmi printer not available, using mock mode');
-        console.error('Sunmi error:', sunmiError);
+        console.warn('⚠️ Imprimante Sunmi non disponible, utilisation du mode simulation');
+        console.error('Erreur Sunmi:', sunmiError);
         
-        // Fallback to mock for non-Sunmi devices
+        // Repli vers simulation pour les appareils non-Sunmi
         await new Promise(resolve => setTimeout(resolve, 1000));
         this.isInitialized = true;
-        console.log('✅ Printer service initialized (mock mode)');
+        console.log('✅ Service d\'impression initialisé (mode simulation)');
         return true;
       }
       
     } catch (error) {
-      console.error('🖨️ Printer initialization error:', error);
+      console.error('🖨️ Erreur d\'initialisation de l\'imprimante:', error);
       return false;
     }
   }
 
   /**
-   * Print receipt - MAIN FUNCTION
+   * Imprimer le reçu - FONCTION PRINCIPALE
    */
   async printReceipt(receiptData: ReceiptData): Promise<boolean> {
     try {
-      console.log('🖨️ === RECEIPT PRINT START ===');
-      console.log('Order ID:', receiptData.orderId);
+      console.log('🖨️ === DÉBUT D\'IMPRESSION DU REÇU ===');
+      console.log('ID Commande:', receiptData.orderId);
       console.log('Total:', receiptData.total);
-      console.log('Items:', receiptData.items.length);
+      console.log('Articles:', receiptData.items.length);
       
       if (!this.isInitialized) {
-        console.log('🔄 Printer not initialized, initializing...');
+        console.log('🔄 Imprimante non initialisée, initialisation...');
         const initSuccess = await this.initialize();
         if (!initSuccess) {
-          throw new Error('Printer initialization failed');
+          throw new Error('Échec de l\'initialisation de l\'imprimante');
         }
       }
 
-      // Check printer status
+      // Vérifier le statut de l'imprimante
       const status = await this.getPrinterStatus();
-      console.log('🖨️ Printer status:', status);
+      console.log('🖨️ Statut de l\'imprimante:', status);
       
       if (!status.isConnected) {
-        throw new Error('Printer not connected');
+        throw new Error('Imprimante non connectée');
       }
       
       if (status.paperStatus === 'empty') {
-        throw new Error('Printer paper is empty');
+        throw new Error('Le papier de l\'imprimante est épuisé');
       }
 
-      // Haptic feedback - start printing
+      // Retour haptique - début d'impression
       if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       
-      console.log('🖨️ Formatting receipt...');
+      console.log('🖨️ Formatage du reçu...');
       const receiptText = this.formatReceiptText(receiptData);
-      console.log('📄 Receipt formatted, sending to printer...');
+      console.log('📄 Reçu formaté, envoi à l\'imprimante...');
       
-      // TRY REAL SUNMI PRINTING FIRST
+      // ESSAYER D'ABORD L'IMPRESSION SUNMI RÉELLE
       try {
-        console.log('🖨️ Using real Sunmi printer...');
+        console.log('🖨️ Utilisation de l\'imprimante Sunmi réelle...');
         
-        // Print header
-        await SunmiPrinter.setAlignment(1); // Center
+        // Imprimer l'en-tête
+        await SunmiPrinter.setAlignment(1); // Centre
         await SunmiPrinter.setFontSize(24);
-        await SunmiPrinter.printText(receiptData.storeInfo?.name || 'CMI PAYMENT DEMO');
+        await SunmiPrinter.printText(receiptData.storeInfo?.name || 'DÉMO PAIEMENT CMI');
         await SunmiPrinter.lineWrap(1);
         
-        // Print receipt content
-        await SunmiPrinter.setAlignment(0); // Left
+        // Imprimer le contenu du reçu
+        await SunmiPrinter.setAlignment(0); // Gauche
         await SunmiPrinter.setFontSize(16);
         await SunmiPrinter.printText(receiptText);
         
-        // Print QR code (optional)
-        const qrData = `order:${receiptData.orderId}:${receiptData.total}`;
-        await SunmiPrinter.setAlignment(1); // Center
+        // Imprimer le code QR (optionnel)
+        const qrData = `commande:${receiptData.orderId}:${receiptData.total}`;
+        await SunmiPrinter.setAlignment(1); // Centre
         await SunmiPrinter.printQRCode(qrData, 200, 0);
         
-        // Cut paper
+        // Couper le papier
         await SunmiPrinter.lineWrap(3);
         await SunmiPrinter.cutPaper();
         
-        console.log('✅ Real Sunmi printing completed');
+        console.log('✅ Impression Sunmi réelle terminée');
         
       } catch (sunmiError) {
-        console.warn('⚠️ Sunmi printing failed, using mock simulation');
-        console.error('Sunmi print error:', sunmiError);
+        console.warn('⚠️ Échec de l\'impression Sunmi, utilisation de la simulation');
+        console.error('Erreur d\'impression Sunmi:', sunmiError);
         
-        // Fallback to mock printing simulation
-        console.log('🖨️ Printing in progress... (mock)');
+        // Repli vers simulation d'impression
+        console.log('🖨️ Impression en cours... (simulation)');
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        console.log('✂️ Cutting paper... (mock)');
+        console.log('✂️ Découpe du papier... (simulation)');
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // Success haptic feedback
+      // Retour haptique de succès
       if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       
-      console.log('✅ === RECEIPT PRINT SUCCESS ===');
-      console.log('📄 Receipt printed for order:', receiptData.orderId);
+      console.log('✅ === SUCCÈS D\'IMPRESSION DU REÇU ===');
+      console.log('📄 Reçu imprimé pour la commande:', receiptData.orderId);
       
       return true;
       
     } catch (error) {
-      console.error('🖨️ === RECEIPT PRINT FAILED ===');
-      console.error('Error:', error);
+      console.error('🖨️ === ÉCHEC D\'IMPRESSION DU REÇU ===');
+      console.error('Erreur:', error);
       
-      // Error haptic feedback
+      // Retour haptique d'erreur
       if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -177,15 +177,15 @@ class PrinterService {
   }
 
   /**
-   * Get printer status
+   * Obtenir le statut de l'imprimante
    */
   async getPrinterStatus(): Promise<PrinterStatus> {
     try {
-      // TRY REAL SUNMI STATUS CHECK FIRST
+      // ESSAYER D'ABORD LA VÉRIFICATION DE STATUT SUNMI RÉELLE
       try {
         const status = await SunmiPrinter.getPrinterStatus();
         
-        console.log('🔍 Real Sunmi printer status:', status);
+        console.log('🔍 Statut imprimante Sunmi réelle:', status);
         
         return {
           isConnected: status.isConnected || true,
@@ -195,22 +195,22 @@ class PrinterService {
         };
         
       } catch (sunmiError) {
-        console.warn('⚠️ Sunmi status check failed, using mock status');
+        console.warn('⚠️ Vérification du statut Sunmi échouée, utilisation du statut simulé');
         
-        // Fallback to mock status
+        // Repli vers statut simulé
         const mockStatus: PrinterStatus = {
           isConnected: true,
-          paperStatus: Math.random() > 0.1 ? 'ok' : 'low', // 90% ok, 10% low
+          paperStatus: Math.random() > 0.1 ? 'ok' : 'low', // 90% ok, 10% bas
           temperature: 'normal',
           batteryLevel: Math.floor(Math.random() * 40) + 60, // 60-100%
         };
         
-        console.log('🔍 Mock printer status:', mockStatus);
+        console.log('🔍 Statut imprimante simulée:', mockStatus);
         return mockStatus;
       }
       
     } catch (error) {
-      console.error('🔍 Status check error:', error);
+      console.error('🔍 Erreur de vérification de statut:', error);
       return {
         isConnected: false,
         paperStatus: 'empty',
@@ -220,91 +220,91 @@ class PrinterService {
   }
 
   /**
-   * Format receipt text for thermal printer
+   * Formater le texte du reçu pour imprimante thermique
    */
   private formatReceiptText(receiptData: ReceiptData): string {
     const { orderId, items, total, paymentMethod, timestamp, customerInfo, storeInfo } = receiptData;
     
     let receipt = '';
     
-    // Header
+    // En-tête
     receipt += '================================\n';
-    receipt += (storeInfo?.name || 'CMI PAYMENT DEMO').toUpperCase().padStart(20) + '\n';
+    receipt += (storeInfo?.name || 'DÉMO PAIEMENT CMI').toUpperCase().padStart(20) + '\n';
     receipt += '================================\n';
     
     if (storeInfo) {
       receipt += `${storeInfo.address}\n`;
-      receipt += `Tel: ${storeInfo.phone}\n`;
+      receipt += `Tél: ${storeInfo.phone}\n`;
       if (storeInfo.taxId) {
-        receipt += `Tax ID: ${storeInfo.taxId}\n`;
+        receipt += `N° Fiscal: ${storeInfo.taxId}\n`;
       }
       receipt += '--------------------------------\n';
     }
     
-    // Order info
-    receipt += `Order: ${orderId}\n`;
-    receipt += `Date: ${timestamp.toLocaleDateString('tr-TR')}\n`;
-    receipt += `Time: ${timestamp.toLocaleTimeString('tr-TR')}\n`;
+    // Informations de commande
+    receipt += `Commande: ${orderId}\n`;
+    receipt += `Date: ${timestamp.toLocaleDateString('fr-FR')}\n`;
+    receipt += `Heure: ${timestamp.toLocaleTimeString('fr-FR')}\n`;
     
     if (customerInfo?.name) {
-      receipt += `Customer: ${customerInfo.name}\n`;
+      receipt += `Client: ${customerInfo.name}\n`;
     }
     
     receipt += '================================\n';
     
-    // Items
+    // Articles
     items.forEach(item => {
       const itemTotal = item.price * item.quantity;
       receipt += `${item.name}\n`;
-      receipt += `  ${item.quantity} x ${item.price.toFixed(2)} TL`;
-      receipt += ` = ${itemTotal.toFixed(2)} TL\n`;
+      receipt += `  ${item.quantity} x ${item.price.toFixed(2)} DH`;
+      receipt += ` = ${itemTotal.toFixed(2)} DH\n`;
     });
     
     receipt += '--------------------------------\n';
     
-    // Totals
+    // Totaux
     const subtotal = total;
-    const tax = subtotal * 0.18; // 18% Turkish VAT
+    const tax = subtotal * 0.20; // 20% TVA Maroc
     const finalTotal = subtotal + tax;
     
-    receipt += `Subtotal:     ${subtotal.toFixed(2)} TL\n`;
-    receipt += `VAT (18%):    ${tax.toFixed(2)} TL\n`;
-    receipt += `TOTAL:        ${finalTotal.toFixed(2)} TL\n`;
-    receipt += `Payment:      ${paymentMethod}\n`;
+    receipt += `Sous-total:   ${subtotal.toFixed(2)} DH\n`;
+    receipt += `TVA (20%):    ${tax.toFixed(2)} DH\n`;
+    receipt += `TOTAL:        ${finalTotal.toFixed(2)} DH\n`;
+    receipt += `Paiement:     ${paymentMethod}\n`;
     receipt += '================================\n';
     
-    // Footer
-    receipt += '         THANK YOU!           \n';
-    receipt += '     Please come again       \n';
+    // Pied de page
+    receipt += '          MERCI !             \n';
+    receipt += '     À bientôt chez nous     \n';
     receipt += '                              \n';
-    receipt += '   Powered by CMI Payment    \n';
-    receipt += `     ${timestamp.toLocaleDateString()}     \n`;
+    receipt += '   Propulsé par CMI Payment  \n';
+    receipt += `     ${timestamp.toLocaleDateString('fr-FR')}     \n`;
     receipt += '================================\n';
     
     return receipt;
   }
 
   /**
-   * Test printer with sample receipt
+   * Tester l'imprimante avec un reçu d'exemple
    */
   async printTestReceipt(): Promise<boolean> {
     const testData: ReceiptData = {
       orderId: 'TEST_' + Date.now(),
       items: [
-        { id: '1', name: 'Test Coffee ☕', price: 25.00, quantity: 1 },
-        { id: '2', name: 'Test Croissant 🥐', price: 15.00, quantity: 2 }
+        { id: '1', name: 'Café Test ☕', price: 25.00, quantity: 1 },
+        { id: '2', name: 'Croissant Test 🥐', price: 15.00, quantity: 2 }
       ],
       total: 55.00,
-      paymentMethod: 'Test Mode',
+      paymentMethod: 'Mode Test',
       timestamp: new Date(),
       customerInfo: {
-        name: 'Test Customer',
-        email: 'test@example.com'
+        name: 'Client Test',
+        email: 'test@exemple.com'
       },
       storeInfo: {
-        name: 'CMI Test Store',
-        address: 'Test Address, Istanbul',
-        phone: '+90 XXX XXX XX XX',
+        name: 'Magasin Test CMI',
+        address: 'Adresse Test, Casablanca',
+        phone: '+212 XXX XXX XXX',
         taxId: 'TEST123456789'
       }
     };
@@ -313,7 +313,7 @@ class PrinterService {
   }
 
   /**
-   * Check if running on real Sunmi device
+   * Vérifier si on fonctionne sur un vrai dispositif Sunmi
    */
   async isSunmiDevice(): Promise<boolean> {
     try {

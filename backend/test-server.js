@@ -250,7 +250,7 @@ app.get('/test-payment/:orderId', (req, res) => {
                 <p class="subtitle">Secure test environment</p>
             </div>
 
-            <div class="amount">${order.total.toFixed(2)} ₺</div>
+            <div class="amount">${order.total.toFixed(2)} MAD</div>
 
             <div class="order-info">
                 <p><strong>Order:</strong> ${orderId}</p>
@@ -289,7 +289,7 @@ app.get('/test-payment/:orderId', (req, res) => {
 
                 <button class="btn btn-primary" onclick="processPayment()">
                     <span>🔒</span>
-                    <span>Pay ${order.total.toFixed(2)} ₺</span>
+                    <span>Pay ${order.total.toFixed(2)} MAD</span>
                 </button>
 
                 <button class="btn btn-secondary" onclick="cancelPayment()">
@@ -303,20 +303,7 @@ app.get('/test-payment/:orderId', (req, res) => {
                 <p>Processing your payment...</p>
             </div>
 
-            <div class="security">
-                <div class="security-item">
-                    <span class="security-icon">🔒</span>
-                    <div>256-bit SSL</div>
-                </div>
-                <div class="security-item">
-                    <span class="security-icon">🛡️</span>
-                    <div>PCI Compliant</div>
-                </div>
-                <div class="security-item">
-                    <span class="security-icon">✅</span>
-                    <div>3D Secure</div>
-                </div>
-            </div>
+           
         </div>
 
         <script>
@@ -544,7 +531,7 @@ app.get('/dashboard', (req, res) => {
                         <div class="stat-label">Print Jobs</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">${allOrders.reduce((sum, o) => o.status === 'paid' ? sum + o.total : sum, 0).toFixed(2)} ₺</div>
+                        <div class="stat-value">${allOrders.reduce((sum, o) => o.status === 'paid' ? sum + o.total : sum, 0).toFixed(2)} MAD</div>
                         <div class="stat-label">Total Revenue</div>
                     </div>
                 </div>
@@ -567,7 +554,7 @@ app.get('/dashboard', (req, res) => {
                             <tr>
                                 <td>${order.id}</td>
                                 <td>${order.customerInfo?.name || 'Guest'}</td>
-                                <td>${order.total.toFixed(2)} ₺</td>
+                                <td>${order.total.toFixed(2)} MAD</td>
                                 <td><span class="status status-${order.status}">${order.status}</span></td>
                                 <td>${new Date(order.createdAt).toLocaleString()}</td>
                             </tr>

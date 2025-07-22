@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions } from 'react-native';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight } from 'react-native-reanimated';
-import { apiService } from '../../services/api';
-import { getOrders, Order } from '../../services/orderService';
-import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { apiService } from '../services/api';
+import { getOrders, Order } from '../services/orderService';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 const { width } = Dimensions.get('window');
 

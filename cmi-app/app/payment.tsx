@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, SlideInUp } from 'react-native-reanimated';
 import { apiService } from '../services/api';
 import { printerService } from '../services/printerService';
-import { updateOrderStatus } from '../services/orderService'; // Import Firebase functions
+import { updateOrderStatus } from '../services/orderService'; // Importation des fonctions Firebase
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { CustomAlert } from '../components/CustomAlert';
 import { CONFIG } from '../constants/config';
@@ -14,8 +14,8 @@ import { CONFIG } from '../constants/config';
 interface PaymentParams {
   paymentUrl: string;
   orderId: string;
-  firebaseOrderId?: string; // Firebase order ID
-  firebaseUserId?: string; // Firebase user ID
+  firebaseOrderId?: string; // ID de commande Firebase
+  firebaseUserId?: string; // ID utilisateur Firebase
   orderTotal: string;
   customerName?: string;
   customerEmail?: string;
@@ -41,34 +41,34 @@ export default function PaymentScreen() {
   const printReceipt = async (orderData: any) => {
     try {
       setPrintingStatus('printing');
-      console.log('🖨️ === RECEIPT PRINTING START ===');
+      console.log('🖨️ === IMPRESSION REÇU DÉBUT ===');
       
       const receiptData = {
         orderId: orderData.id,
-        items: CONFIG.MOCK_ORDER_ITEMS, // You can use actual order items here
+        items: CONFIG.MOCK_ORDER_ITEMS, // Vous pouvez utiliser les articles de commande réels ici
         total: orderData.total,
-        paymentMethod: 'CMI Credit Card',
+        paymentMethod: 'Carte de Crédit CMI',
         timestamp: new Date(),
         customerInfo: {
-          name: params.customerName || 'Guest',
+          name: params.customerName || 'Invité',
           email: params.customerEmail || '',
         },
         storeInfo: {
-          name: 'CMI Payment Demo Store',
-          address: 'Demo Address, Istanbul, Turkey',
+          name: 'Magasin Démo Paiement CMI',
+          address: 'Adresse Démo, Istanbul, Turquie',
           phone: '+90 XXX XXX XX XX',
           taxId: 'DEMO123456789',
         }
       };
 
-      console.log('🖨️ Printing receipt for order:', orderData.id);
+      console.log('🖨️ Impression du reçu pour la commande:', orderData.id);
       const printSuccess = await printerService.printReceipt(receiptData);
       
       if (printSuccess) {
         setPrintingStatus('success');
-        console.log('✅ Receipt printed successfully!');
+        console.log('✅ Reçu imprimé avec succès!');
         
-        // Log to backend
+        // Enregistrer dans le backend
         try {
           const response = await fetch(`${CONFIG.API_BASE_URL}/api/test/print`, {
             method: 'POST',
@@ -80,42 +80,42 @@ export default function PaymentScreen() {
           });
           
           if (response.ok) {
-            console.log('📝 Print job logged to backend successfully');
+            console.log('📝 Travail d\'impression enregistré avec succès dans le backend');
           } else {
-            console.warn('⚠️ Backend print log failed:', response.status);
+            console.warn('⚠️ Échec de l\'enregistrement d\'impression dans le backend:', response.status);
           }
         } catch (logError) {
-          console.warn('⚠️ Failed to log print job:', logError);
+          console.warn('⚠️ Échec de l\'enregistrement du travail d\'impression:', logError);
         }
         
         return true;
       } else {
         setPrintingStatus('failed');
-        console.error('❌ Receipt printing failed');
+        console.error('❌ Échec de l\'impression du reçu');
         return false;
       }
     } catch (error) {
       setPrintingStatus('failed');
-      console.error('🖨️ Print error:', error);
+      console.error('🖨️ Erreur d\'impression:', error);
       return false;
     }
   };
 
   const updateFirebaseOrder = async (success: boolean) => {
     if (!params.firebaseOrderId || !params.firebaseUserId) {
-      console.log('⚠️ No Firebase order data, skipping update');
+      console.log('⚠️ Pas de données de commande Firebase, saut de la mise à jour');
       return;
     }
 
     try {
-      console.log('🔥 Updating Firebase order status...');
+      console.log('🔥 Mise à jour du statut de commande Firebase...');
       const newStatus = success ? 'confirmed' : 'cancelled';
       const paymentStatus = success ? 'paid' : 'failed';
       
       const updateData = {
         paymentStatus,
         paidAt: success ? new Date() : null,
-        cmiOrderId: params.orderId, // Link CMI order ID
+        cmiOrderId: params.orderId, // Lier l'ID de commande CMI
       };
 
       const updated = await updateOrderStatus(
@@ -126,17 +126,17 @@ export default function PaymentScreen() {
       );
 
       if (updated) {
-        console.log(`✅ Firebase order updated to ${newStatus}`);
+        console.log(`✅ Commande Firebase mise à jour vers ${newStatus}`);
       } else {
-        console.error('❌ Failed to update Firebase order');
+        console.error('❌ Échec de la mise à jour de la commande Firebase');
       }
     } catch (error) {
-      console.error('🔥 Firebase update error:', error);
+      console.error('🔥 Erreur de mise à jour Firebase:', error);
     }
   };
 
   const handlePaymentSuccess = async () => {
-    console.log('🎉 === PAYMENT SUCCESS HANDLER ===');
+    console.log('🎉 === GESTIONNAIRE DE SUCCÈS DE PAIEMENT ===');
     setLoading(true);
     setWebViewVisible(false);
     
@@ -145,55 +145,55 @@ export default function PaymentScreen() {
     }
     
     try {
-      console.log('📊 Checking order status...');
+      console.log('📊 Vérification du statut de la commande...');
       const response = await apiService.getOrderStatus(params.orderId);
       
       if (response.success && response.order) {
-        console.log('✅ Order confirmed:', response.order.status);
+        console.log('✅ Commande confirmée:', response.order.status);
         
         if (response.order.status === 'paid') {
-          // Update Firebase order status
+          // Mettre à jour le statut de commande Firebase
           await updateFirebaseOrder(true);
           
-          // Print receipt
+          // Imprimer le reçu
           const printSuccess = await printReceipt(response.order);
           
-          // Show final result
-          const finalMessage = `Dear ${params.customerName || 'Customer'},\n\n` +
-            `Your payment of ${response.order.total.toFixed(2)} ₺ has been processed successfully!\n\n` +
+          // Afficher le résultat final
+          const finalMessage = `Cher(ère) ${params.customerName || 'Client'},\n\n` +
+            `Votre paiement de ${response.order.total.toFixed(2)} DH a été traité avec succès !\n\n` +
             `${printSuccess 
-              ? '✅ Receipt printed successfully!\nPlease take your receipt from the printer.' 
-              : '⚠️ Payment successful but receipt printing failed.\nPlease contact staff for a manual receipt.'
+              ? '✅ Reçu imprimé avec succès !\nVeuillez récupérer votre reçu depuis l\'imprimante.' 
+              : '⚠️ Paiement réussi mais l\'impression du reçu a échoué.\nVeuillez contacter le personnel pour un reçu manuel.'
             }\n\n` +
-            `Transaction ID: ${response.order.id.slice(-8)}\n` +
-            `${params.customerEmail ? `Confirmation sent to: ${params.customerEmail}` : ''}\n\n` +
-            `${params.firebaseOrderId ? `Order #${params.firebaseOrderId.slice(-6)} updated` : ''}`;
+            `ID de Transaction : ${response.order.id.slice(-8)}\n` +
+            `${params.customerEmail ? `Confirmation envoyée à : ${params.customerEmail}` : ''}\n\n` +
+            `${params.firebaseOrderId ? `Commande #${params.firebaseOrderId.slice(-6)} mise à jour` : ''}`;
 
           showAlert(
-            printSuccess ? 'Payment & Print Complete! 🎉' : 'Payment Successful! ⚠️',
+            printSuccess ? 'Paiement et Impression Terminés ! 🎉' : 'Paiement Réussi ! ⚠️',
             finalMessage,
             printSuccess ? 'success' : 'warning'
           );
         } else {
           showAlert(
-            'Payment Status Unknown ⚠️',
-            `Order status is: ${response.order.status}. Please contact support for assistance.`,
+            'Statut de Paiement Inconnu ⚠️',
+            `Le statut de la commande est : ${response.order.status}. Veuillez contacter le support pour obtenir de l'aide.`,
             'warning'
           );
         }
       } else {
-        console.warn('⚠️ Order not found or invalid response');
+        console.warn('⚠️ Commande introuvable ou réponse invalide');
         showAlert(
-          'Order Not Found ⚠️',
-          'Payment may have been successful but we cannot verify the status. Please contact support.',
+          'Commande Introuvable ⚠️',
+          'Le paiement peut avoir réussi mais nous ne pouvons pas vérifier le statut. Veuillez contacter le support.',
           'warning'
         );
       }
     } catch (error) {
-      console.error('💥 Error processing payment success:', error);
+      console.error('💥 Erreur lors du traitement du succès du paiement:', error);
       showAlert(
-        'Processing Error ⚠️',
-        'Payment was successful but there was an error processing it. Please contact support with your order ID.',
+        'Erreur de Traitement ⚠️',
+        'Le paiement a réussi mais il y a eu une erreur lors du traitement. Veuillez contacter le support avec votre ID de commande.',
         'warning'
       );
     } finally {
@@ -202,40 +202,40 @@ export default function PaymentScreen() {
   };
 
   const handlePaymentFailure = async () => {
-    console.log('❌ Payment failure handler');
+    console.log('❌ Gestionnaire d\'échec de paiement');
     setWebViewVisible(false);
     
     if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
 
-    // Update Firebase order to cancelled
+    // Mettre à jour la commande Firebase vers annulée
     await updateFirebaseOrder(false);
     
     showAlert(
-      'Payment Failed ❌',
-      'Your payment could not be processed. No charges have been made.\n\nPlease try again or contact support if the issue persists.',
+      'Paiement Échoué ❌',
+      'Votre paiement n\'a pas pu être traité. Aucun frais n\'a été appliqué.\n\nVeuillez réessayer ou contacter le support si le problème persiste.',
       'error'
     );
   };
 
-  // Enhanced WebView navigation handling
+  // Gestion améliorée de la navigation WebView
   const handleNavigationStateChange = useCallback((navState: any) => {
     const { url, loading } = navState;
-    console.log(`🌐 WebView navigation: ${url} loading: ${loading}`);
+    console.log(`🌐 Navigation WebView : ${url} chargement : ${loading}`);
 
-    // Don't process while loading
+    // Ne pas traiter pendant le chargement
     if (loading) return;
 
-    // Check for hash-based success/failure (NO MORE DEEP LINK WARNINGS!)
+    // Vérifier le succès/échec basé sur le hash (PLUS D'AVERTISSEMENTS DE LIEN PROFOND !)
     if (url.includes('#success-')) {
-      console.log('✅ Payment success detected');
+      console.log('✅ Succès de paiement détecté');
       handlePaymentSuccess();
       return;
     }
     
     if (url.includes('#fail-')) {
-      console.log('❌ Payment failure detected');
+      console.log('❌ Échec de paiement détecté');
       handlePaymentFailure();
       return;
     }
@@ -243,25 +243,25 @@ export default function PaymentScreen() {
 
   const handleShouldStartLoadWithRequest = useCallback((request: any) => {
     const { url } = request;
-    console.log('🔗 WebView wants to load:', url);
+    console.log('🔗 WebView veut charger :', url);
     
-    // Handle deep links
+    // Gérer les liens profonds
     if (url.startsWith('cmipaymentapp://')) {
-      console.log('🔗 Intercepting deep link:', url);
+      console.log('🔗 Interception du lien profond :', url);
       
-      // Process the deep link directly
+      // Traiter le lien profond directement
       if (url.includes('payment/success')) {
-        console.log('✅ Success deep link intercepted');
+        console.log('✅ Lien profond de succès intercepté');
         setTimeout(() => handlePaymentSuccess(), 100);
       } else if (url.includes('payment/fail')) {
-        console.log('❌ Failure deep link intercepted');
+        console.log('❌ Lien profond d\'échec intercepté');
         setTimeout(() => handlePaymentFailure(), 100);
       }
       
-      return false; // Don't load in WebView
+      return false; // Ne pas charger dans WebView
     }
     
-    return true; // Allow normal navigation
+    return true; // Autoriser la navigation normale
   }, []);
 
   const handleGoBack = useCallback(() => {
@@ -270,8 +270,8 @@ export default function PaymentScreen() {
       Haptics.selectionAsync();
     }
     showAlert(
-      'Payment Cancelled ⏹️',
-      'Payment cancelled by user. No charges have been made.',
+      'Paiement Annulé ⏹️',
+      'Paiement annulé par l\'utilisateur. Aucun frais n\'a été appliqué.',
       'warning'
     );
   }, [showAlert]);
@@ -281,7 +281,7 @@ export default function PaymentScreen() {
     setTimeout(() => router.back(), 300);
   }, []);
 
-  // Android back button handling
+  // Gestion du bouton de retour Android
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (webViewVisible && !loading) {
@@ -293,17 +293,17 @@ export default function PaymentScreen() {
     return () => backHandler.remove();
   }, [webViewVisible, loading, handleGoBack]);
 
-  // Validate parameters
+  // Valider les paramètres
   if (!params.paymentUrl || !params.orderId) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-50 dark:bg-gray-900 p-6">
         <Animated.View entering={FadeIn} className="items-center">
-          <Text className="text-red-600 text-xl font-bold mb-4">Invalid Payment Parameters</Text>
+          <Text className="text-red-600 text-xl font-bold mb-4">Paramètres de Paiement Invalides</Text>
           <Text className="text-gray-600 text-center mb-6">
-            Payment URL or Order ID is missing. Please try again from the home screen.
+            L'URL de paiement ou l'ID de commande est manquant. Veuillez réessayer depuis l'écran d'accueil.
           </Text>
           <TouchableOpacity onPress={() => router.back()} className="bg-primary-600 py-3 px-6 rounded-xl">
-            <Text className="text-white font-bold">← Go Back</Text>
+            <Text className="text-white font-bold">← Retour</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -312,25 +312,25 @@ export default function PaymentScreen() {
 
   const getLoadingMessage = () => {
     switch (printingStatus) {
-      case 'printing': return 'Printing your receipt...';
-      default: return 'Processing your payment...';
+      case 'printing': return 'Impression de votre reçu...';
+      default: return 'Traitement de votre paiement...';
     }
   };
 
   return (
     <View className="flex-1 bg-white dark:bg-gray-900">
-      {/* Header */}
+      {/* En-tête */}
       <Animated.View 
         entering={SlideInUp.duration(400)}
         className="bg-gradient-to-r from-cmi-600 to-cmi-700 px-6 pt-14 pb-6 shadow-cmi"
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-1">
-            <Text className="text-white text-2xl font-bold mb-1">🔒 Secure Payment</Text>
+            <Text className="text-white text-lg font-bold">Paiement Sécurisé CMI</Text>
             <Text className="text-cmi-100 text-sm">
-              Order: {params.orderId.slice(-8)} • {params.customerName || 'Guest'}
+              Commande : {params.orderId.slice(-8)} • {params.customerName || 'Invité'}
               {params.firebaseOrderId && (
-                <Text className="text-cmi-200"> • Firebase: #{params.firebaseOrderId.slice(-6)}</Text>
+                <Text className="text-cmi-200"> : #{params.firebaseOrderId.slice(-6)}</Text>
               )}
             </Text>
           </View>
@@ -339,30 +339,31 @@ export default function PaymentScreen() {
             disabled={loading}
             className="bg-white/20 py-3 px-4 rounded-xl disabled:opacity-50 active:scale-95"
           >
-            <Text className="text-white font-bold">Cancel</Text>
+            <Text className="text-white font-bold">Annuler</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
 
-      {/* Amount & Status Display */}
+      {/* Affichage du Montant et du Statut */}
       <Animated.View 
         entering={FadeIn.delay(200)}
         className="bg-gray-50 dark:bg-gray-800 p-6 border-b border-gray-200 dark:border-gray-600"
       >
         <Text className="text-center text-4xl font-bold text-gray-900 dark:text-white mb-2">
-          {parseFloat(params.orderTotal).toFixed(2)} <Text className="text-cmi-600">₺</Text>
+          {parseFloat(params.orderTotal).toFixed(2)} <Text className="text-cmi-600">DH</Text>
         </Text>
         
-        {/* Firebase Integration Status */}
+        {/* Statut d'Intégration Firebase 
         {params.firebaseOrderId && (
           <View className="flex-row items-center justify-center mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-xl">
             <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
-              🔥 Firebase Order: #{params.firebaseOrderId.slice(-6)}
+              🔥 Commande Firebase : #{params.firebaseOrderId.slice(-6)}
             </Text>
           </View>
         )}
+          */}
         
-        {/* Print Status */}
+        {/* Statut d'Impression */}
         {printingStatus !== 'idle' && (
           <View className="flex-row items-center justify-center mt-4 p-3 bg-white dark:bg-gray-700 rounded-xl">
             <View className={`w-3 h-3 rounded-full mr-3 ${
@@ -371,14 +372,14 @@ export default function PaymentScreen() {
               'bg-red-500'
             }`} />
             <Text className="text-gray-800 dark:text-gray-200 font-medium">
-              {printingStatus === 'printing' ? '🖨️ Printing receipt...' :
-               printingStatus === 'success' ? '✅ Receipt printed successfully' :
-               '❌ Receipt printing failed'}
+              {printingStatus === 'printing' ? '🖨️ Impression du reçu...' :
+               printingStatus === 'success' ? '✅ Reçu imprimé avec succès' :
+               '❌ Échec de l\'impression du reçu'}
             </Text>
           </View>
         )}
 
-        {/* Security Indicators */}
+        {/* Indicateurs de Sécurité 
         <View className="flex-row justify-center space-x-6 mt-4">
           <View className="items-center">
             <View className="bg-green-100 dark:bg-green-900/30 rounded-full p-2 mb-1">
@@ -390,15 +391,16 @@ export default function PaymentScreen() {
             <View className="bg-blue-100 dark:bg-blue-900/30 rounded-full p-2 mb-1">
               <Text className="text-lg">🛡️</Text>
             </View>
-            <Text className="text-blue-600 dark:text-blue-400 text-xs font-medium">SSL Protected</Text>
+            <Text className="text-blue-600 dark:text-blue-400 text-xs font-medium">Protection SSL</Text>
           </View>
           <View className="items-center">
             <View className="bg-purple-100 dark:bg-purple-900/30 rounded-full p-2 mb-1">
               <Text className="text-lg">✅</Text>
             </View>
-            <Text className="text-purple-600 dark:text-purple-400 text-xs font-medium">PCI Compliant</Text>
+            <Text className="text-purple-600 dark:text-purple-400 text-xs font-medium">Conforme PCI</Text>
           </View>
         </View>
+        */}
       </Animated.View>
 
       {/* WebView */}
@@ -413,32 +415,32 @@ export default function PaymentScreen() {
               <View className="flex-1 justify-center items-center bg-gray-50">
                 <View className="bg-white p-6 rounded-2xl shadow-lg items-center">
                   <View className="w-8 h-8 border-2 border-cmi-600 border-t-transparent rounded-full animate-spin mb-4" />
-                  <Text className="text-gray-700 font-medium">Loading payment gateway...</Text>
+                  <Text className="text-gray-700 font-medium">Chargement de la passerelle de paiement...</Text>
                 </View>
               </View>
             )}
             onError={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
-              console.error('❌ WebView error:', nativeEvent);
+              console.error('❌ Erreur WebView:', nativeEvent);
               showAlert(
-                'Connection Error 🌐',
-                `Failed to load payment page.\n\nError: ${nativeEvent.description}\n\nPlease check your internet connection and try again.`,
+                'Erreur de Connexion 🌐',
+                `Échec du chargement de la page de paiement.\n\nErreur : ${nativeEvent.description}\n\nVeuillez vérifier votre connexion internet et réessayer.`,
                 'error'
               );
             }}
             onHttpError={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
-              console.error('❌ WebView HTTP error:', nativeEvent);
+              console.error('❌ Erreur HTTP WebView:', nativeEvent);
               showAlert(
-                'Payment Gateway Error ⚠️',
-                `Payment service error (HTTP ${nativeEvent.statusCode}).\n\nPlease try again in a few moments.`,
+                'Erreur de Passerelle de Paiement ⚠️',
+                `Erreur du service de paiement (HTTP ${nativeEvent.statusCode}).\n\nVeuillez réessayer dans quelques instants.`,
                 'error'
               );
             }}
-            // Enhanced WebView settings
+            // Paramètres WebView améliorés
             javaScriptEnabled={true}
             domStorageEnabled={true}
-            allowsInlineMediaPlayback={true}
+            allowsInlineMediaPlaybook={true}
             mediaPlaybackRequiresUserAction={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
@@ -446,14 +448,15 @@ export default function PaymentScreen() {
             style={{ flex: 1 }}
           />
           
-          {/* Debug Info (Development Only) */}
+          {/* Informations de Débogage (Développement Uniquement) 
           {__DEV__ && (
             <View className="bg-gray-100 dark:bg-gray-800 p-2 border-t border-gray-200 dark:border-gray-700">
               <Text className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                🔗 Deep link scheme: {CONFIG.DEEP_LINK_SCHEME} | 🔥 Firebase: {params.firebaseOrderId?.slice(-6) || 'None'}
+                🔗 Schéma de lien profond : {CONFIG.DEEP_LINK_SCHEME} | 🔥 Firebase : {params.firebaseOrderId?.slice(-6) || 'Aucun'}
               </Text>
             </View>
           )}
+          */}
         </View>
       )}
 
@@ -469,7 +472,7 @@ export default function PaymentScreen() {
         message={alert.message}
         type={alert.type}
         onClose={handleAlertClose}
-        confirmText={alert.type === 'success' ? 'Continue Shopping' : 'OK'}
+        confirmText={alert.type === 'success' ? 'Continuer les Achats' : 'OK'}
       />
     </View>
   );

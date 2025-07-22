@@ -1,17 +1,18 @@
-// app/(tabs)/index.tsx - Updated to match real order service
+// app/(tabs)/index.tsx - Version française avec logo AFOUD
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput, Image } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { CONFIG } from '../../constants/config';
 import { apiService } from '../../services/api';
+import { printerService } from '../../services/printerService';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { CustomAlert } from '../../components/CustomAlert';
 import { PaymentCard } from '../../components/PaymentCard';
-import { getOrders, Order } from '../../services/orderService'; // Updated import
+import { getOrders, Order, updateOrderStatus } from '../../services/orderService';
 
-// Updated interface to match your real order service
+// Interface mise à jour pour correspondre au service de commandes réel
 interface RealFirebaseOrder {
   id: string;
   userId: string;
@@ -63,20 +64,20 @@ export default function HomeScreen() {
     type: 'info' as const,
   });
 
-  // Load orders using your real service
+  // Charger les commandes en utilisant votre service réel
   const loadOrders = async () => {
     try {
-      console.log('📊 Loading orders from real Firebase service...');
+      console.log('📊 Chargement des commandes depuis le service Firebase réel...');
       const allOrders = await getOrders();
       
-      // Filter for pending orders that need payment
+      // Filtrer les commandes en attente qui nécessitent un paiement
       const pendingOrders = allOrders.filter(order => 
         order.status === 'pending' && order.paymentStatus === 'unpaid'
       );
       
       setOrders(pendingOrders);
       
-      // Auto-select first order if none selected
+      // Sélectionner automatiquement la première commande si aucune n'est sélectionnée
       if (pendingOrders.length > 0 && !selectedOrder) {
         const firstOrder = pendingOrders[0];
         setSelectedOrder(firstOrder);
@@ -84,9 +85,9 @@ export default function HomeScreen() {
         setCustomerEmail(firstOrder.customerPhone);
       }
       
-      console.log(`✅ Loaded ${pendingOrders.length} pending orders from ${allOrders.length} total`);
+      console.log(`✅ Chargé ${pendingOrders.length} commandes en attente sur ${allOrders.length} au total`);
     } catch (error) {
-      console.error('❌ Error loading orders:', error);
+      console.error('❌ Erreur lors du chargement des commandes:', error);
     }
   };
 
@@ -105,33 +106,133 @@ export default function HomeScreen() {
         await Haptics.selectionAsync();
       }
     } catch (error) {
-      console.error('Refresh error:', error);
+      console.error('Erreur d\'actualisation:', error);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const showAlert = (title: string, message: string, type: 'info' | 'success' | 'error' | 'warning' | 'cmi' = 'info') => {
-    setAlert({ visible: true, title, message, type });
-  };
-
-  const validateForm = () => {
+  const handleCashPayment = async () => {
     if (!selectedOrder) {
-      showAlert('No Order Selected', 'Please select an order to process payment.', 'warning');
-      return false;
+      showAlert('Erreur ⚠️', 'Veuillez sélectionner une commande.', 'warning');
+      return;
     }
-    
-    if (!customerName.trim()) {
-      showAlert('Missing Information', 'Please enter customer name.', 'warning');
-      return false;
+
+    if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+
+    setLoading(true);
     
-    return true;
+    try {
+      console.log('💵 === PAIEMENT EN ESPÈCES DÉBUT ===');
+      console.log('Commande:', selectedOrder.id);
+      console.log('Montant:', selectedOrder.total);
+      
+      // Mettre à jour le statut Firebase vers confirmé et payé
+      const updated = await updateOrderStatus(
+        selectedOrder.userId, 
+        selectedOrder.id, 
+        'confirmed', 
+        {
+          paymentStatus: 'paid',
+          paymentMethod: 'cash',
+          paidAt: new Date(),
+          cashPayment: true,
+        }
+      );
+
+      if (!updated) {
+        throw new Error('Échec de la mise à jour de la commande');
+      }
+
+      console.log('✅ Statut de commande Firebase mis à jour');
+
+      // Préparer les données du reçu
+      const receiptData = {
+        orderId: selectedOrder.id,
+        items: selectedOrder.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        total: selectedOrder.total,
+        paymentMethod: 'Espèces',
+        timestamp: new Date(),
+        customerInfo: {
+          name: selectedOrder.customerName,
+          email: selectedOrder.customerPhone,
+        },
+        storeInfo: {
+          name: 'AFOUD - Plateforme de Livraison',
+          address: 'Marrakech, Maroc',
+          phone: '+212 XXX XXX XXX',
+          taxId: 'AFOUD123456789',
+        }
+      };
+
+      console.log('🖨️ Impression du reçu...');
+      
+      // Imprimer le reçu
+      const printSuccess = await printerService.printReceipt(receiptData);
+      
+      if (printSuccess) {
+        console.log('✅ Reçu imprimé avec succès');
+        
+        if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+
+        const successMessage = `Paiement en espèces encaissé avec succès !\n\n` +
+          `💰 Montant : ${selectedOrder.total.toFixed(2)} DH\n` +
+          `👤 Client : ${selectedOrder.customerName}\n` +
+          `📦 Commande : #${selectedOrder.id.slice(-6)}\n\n` +
+          `✅ Reçu imprimé avec succès !\n` +
+          `Veuillez remettre le reçu au client.\n\n` +
+          `Commande marquée comme payée et confirmée.`;
+
+        showAlert('Paiement Espèces Réussi ! 🎉', successMessage, 'success');
+
+        // Recharger les commandes pour supprimer celle-ci de la liste
+        await loadOrders();
+        
+      } else {
+        console.warn('⚠️ Impression du reçu échouée');
+        
+        const warningMessage = `Paiement encaissé avec succès mais l'impression a échoué.\n\n` +
+          `💰 Montant : ${selectedOrder.total.toFixed(2)} DH\n` +
+          `👤 Client : ${selectedOrder.customerName}\n` +
+          `📦 Commande : #${selectedOrder.id.slice(-6)}\n\n` +
+          `⚠️ Veuillez imprimer un reçu manuel.\n` +
+          `La commande est marquée comme payée.`;
+
+        showAlert('Paiement Réussi - Problème d\'Impression ⚠️', warningMessage, 'warning');
+        
+        // Recharger les commandes même si l'impression a échoué
+        await loadOrders();
+      }
+      
+      console.log('✅ === PAIEMENT EN ESPÈCES TERMINÉ ===');
+      
+    } catch (error) {
+      console.error('💥 Erreur paiement espèces:', error);
+      
+      if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      
+      showAlert(
+        'Erreur de Paiement ❌', 
+        'Une erreur s\'est produite lors du traitement du paiement en espèces. Veuillez réessayer.',
+        'error'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePayment = async () => {
-    if (!validateForm()) return;
-
     if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
@@ -141,11 +242,11 @@ export default function HomeScreen() {
     try {
       const isHealthy = await apiService.checkHealth();
       if (!isHealthy) {
-        showAlert('Connection Error 🌐', 'Cannot connect to payment server.', 'error');
+        showAlert('Erreur de Connexion 🌐', 'Impossible de se connecter au serveur de paiement.', 'error');
         return;
       }
 
-      // Use real order items with proper structure
+      // Utiliser les articles de commande réels avec la structure appropriée
       const orderItems = selectedOrder!.items.map(item => ({
         id: item.id,
         name: item.name,
@@ -176,11 +277,11 @@ export default function HomeScreen() {
           },
         });
       } else {
-        showAlert('Payment Error 🏦', response.error || 'Failed to initiate payment.', 'error');
+        showAlert('Erreur de Paiement 🏦', response.error || 'Échec de l\'initialisation du paiement.', 'error');
       }
     } catch (error) {
-      console.error('Payment error:', error);
-      showAlert('Unexpected Error ⚠️', 'An error occurred. Please try again.', 'error');
+      console.error('Erreur de paiement:', error);
+      showAlert('Erreur Inattendue ⚠️', 'Une erreur s\'est produite. Veuillez réessayer.', 'error');
     } finally {
       setLoading(false);
     }
@@ -194,12 +295,12 @@ export default function HomeScreen() {
 
   const formatOrderDate = (orderData: any) => {
     if (orderData.createdAt?.toDate) {
-      return orderData.createdAt.toDate().toLocaleDateString();
+      return orderData.createdAt.toDate().toLocaleDateString('fr-FR');
     }
     if (orderData.date) {
-      return new Date(orderData.date).toLocaleDateString();
+      return new Date(orderData.date).toLocaleDateString('fr-FR');
     }
-    return new Date().toLocaleDateString();
+    return new Date().toLocaleDateString('fr-FR');
   };
 
   return (
@@ -213,43 +314,36 @@ export default function HomeScreen() {
       }
     >
       <View className="p-6">
-        {/* Header */}
+        {/* En-tête avec Logo AFOUD */}
         <Animated.View 
           entering={FadeInDown.delay(100)}
-          className="bg-blue-600 rounded-3xl p-8 mb-6"
+          className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6 shadow-sm"
         >
-          <View className="flex-row items-center justify-between mb-4">
-            <View>
-              <Text className="text-white text-3xl font-bold mb-2">
-                CMI Payment v2.0
+          <View className="flex-row items-center justify-center mb-2">
+            <Image 
+              source={require('../../assets/logo.jpg')} 
+              style={{ width: 80, height: 80 }} 
+              className="rounded-2xl mr-4"
+            />
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center">
+                AFOUD
               </Text>
-              <Text className="text-blue-100 text-base">
-                Real Firebase Orders ✅
+              <Text className="text-gray-600 dark:text-gray-400 text-center mt-1">
+                Plateforme de Paiement
               </Text>
             </View>
-            <View className="bg-white/20 rounded-2xl p-4">
-              <Text className="text-4xl">🏦</Text>
-            </View>
-          </View>
-          
-          <View className="bg-white/10 rounded-2xl p-4">
-            <Text className="text-white font-semibold text-sm">
-              📦 {orders.length} Pending Orders • 🔥 Live Data
-            </Text>
-            <Text className="text-blue-100 text-xs mt-1">
-              Order Service ✅ • CMI Gateway ✅ • Sunmi Ready 🖨️
-            </Text>
           </View>
         </Animated.View>
 
-        {/* Order Selection */}
+        {/* Sélection de Commande */}
         {orders.length > 0 ? (
           <Animated.View 
             entering={FadeInDown.delay(200)}
             className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
           >
             <Text className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-              📋 Select Order to Pay
+              📋 Sélectionner une Commande à Payer
             </Text>
             
             {orders.map((order) => (
@@ -270,7 +364,7 @@ export default function HomeScreen() {
                       </Text>
                       {selectedOrder?.id === order.id && (
                         <View className="ml-2 bg-blue-500 rounded-full px-2 py-1">
-                          <Text className="text-white text-xs font-bold">SELECTED</Text>
+                          <Text className="text-white text-xs font-bold">SÉLECTIONNÉE</Text>
                         </View>
                       )}
                     </View>
@@ -290,26 +384,26 @@ export default function HomeScreen() {
                       </Text>
                     )}
                     <Text className="text-gray-500 dark:text-gray-400 text-sm">
-                      📦 {order.items.length} items • {Order.getStatusDisplay(order.status)}
+                      📦 {order.items.length} articles • {Order.getStatusDisplay(order.status)}
                     </Text>
                   </View>
                   
                   <View className="items-end">
                     <Text className="text-2xl font-bold text-blue-600 mb-1">
-                      {order.total.toFixed(2)} ₺
+                      {order.total.toFixed(2)} DH
                     </Text>
                     <Text className="text-xs text-gray-500 dark:text-gray-400">
                       {formatOrderDate(order)}
                     </Text>
                     {order.deliveryFee > 0 && (
                       <Text className="text-xs text-gray-500">
-                        +{order.deliveryFee.toFixed(2)} ₺ delivery
+                        +{order.deliveryFee.toFixed(2)} DH livraison
                       </Text>
                     )}
                   </View>
                 </View>
                 
-                {/* Order Items Preview */}
+                {/* Aperçu des Articles de la Commande */}
                 <View className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                   {order.items.slice(0, 2).map((item, index) => (
                     <View key={index} className="flex-row justify-between items-center">
@@ -322,13 +416,13 @@ export default function HomeScreen() {
                         )}
                       </Text>
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-2">
-                        {item.subtotal.toFixed(2)} ₺
+                        {item.subtotal.toFixed(2)} DH
                       </Text>
                     </View>
                   ))}
                   {order.items.length > 2 && (
                     <Text className="text-sm text-gray-500 dark:text-gray-500">
-                      ... and {order.items.length - 2} more items
+                      ... et {order.items.length - 2} autres articles
                     </Text>
                   )}
                   {order.notes && (
@@ -348,16 +442,16 @@ export default function HomeScreen() {
             <View className="flex-row items-center mb-4">
               <Text className="text-3xl mr-3">📦</Text>
               <Text className="text-yellow-800 dark:text-yellow-200 font-bold text-xl">
-                No Pending Orders
+                Aucune Commande en Attente
               </Text>
             </View>
             <Text className="text-yellow-700 dark:text-yellow-300 text-sm">
-              No orders found that need payment. Orders will appear here when customers place them.
+              Aucune commande trouvée nécessitant un paiement. Les commandes apparaîtront ici lorsque les clients les passeront.
             </Text>
           </Animated.View>
         )}
 
-        {/* Customer Information */}
+        {/* Informations Client (commenté pour le moment)
         <Animated.View 
           entering={FadeInDown.delay(300)}
           className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
@@ -367,46 +461,93 @@ export default function HomeScreen() {
               <Text className="text-2xl">👤</Text>
             </View>
             <Text className="text-xl font-bold text-gray-900 dark:text-white">
-              Customer Information
+              Informations Client
             </Text>
           </View>
           
           <View className="mb-4">
             <Text className="text-gray-700 dark:text-gray-300 text-sm font-medium mb-2">
-              Customer Name
+              Nom du Client
             </Text>
             <TextInput
               value={customerName}
               onChangeText={setCustomerName}
-              placeholder="Enter customer name"
+              placeholder="Saisir le nom du client"
               className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white"
             />
           </View>
           
           <View>
             <Text className="text-gray-700 dark:text-gray-300 text-sm font-medium mb-2">
-              Phone/Email
+              Téléphone/Email
             </Text>
             <TextInput
               value={customerEmail}
               onChangeText={setCustomerEmail}
-              placeholder="Enter phone or email"
+              placeholder="Saisir téléphone ou email"
               className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white"
             />
           </View>
         </Animated.View>
+        */}
 
-        {/* Payment Card */}
-        <View className="mt-6">
+        {/* Options de Paiement */}
+        <View className="mt-6 space-y-4">
+          {/* Paiement par Carte CMI */}
           <PaymentCard
             total={selectedOrder?.total || 0}
             onPress={handlePayment}
             loading={loading}
             delay={400}
           />
+          
+          {/* Paiement en Espèces */}
+          <Animated.View
+            entering={FadeInDown.delay(450)}
+            className="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-6 shadow-lg"
+          >
+            <View className="flex-row items-center justify-between mb-4">
+              <View>
+                <Text className="text-white/80 text-sm font-medium">Paiement Direct</Text>
+                <Text className="text-white text-xl font-bold">Espèces</Text>
+              </View>
+              <View className="bg-white/20 rounded-2xl p-3">
+                <Text className="text-3xl">💵</Text>
+              </View>
+            </View>
+
+            <View className="bg-white/10 rounded-2xl p-4 mb-4 backdrop-blur-sm">
+              <Text className="text-white/80 text-sm font-medium mb-2">Montant à Encaisser</Text>
+              <Text className="text-white text-3xl font-bold">
+                {selectedOrder?.total.toFixed(2) || '0.00'} <Text className="text-xl">DH</Text>
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleCashPayment}
+              disabled={loading || !selectedOrder}
+              className="bg-white py-4 px-6 rounded-2xl shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              <View className="flex-row items-center justify-center">
+                {loading ? (
+                  <>
+                    <View className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-3" />
+                    <Text className="text-green-700 font-bold text-lg">Impression en cours...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-2xl mr-3">🖨️</Text>
+                    <Text className="text-green-700 font-bold text-lg">
+                      Encaisser & Imprimer
+                    </Text>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
         </View>
 
-        {/* Features & Security */}
+        {/* Fonctionnalités et Sécurité (commenté pour le moment)
         <Animated.View 
           entering={FadeInDown.delay(500)}
           className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-3xl p-6 mt-6"
@@ -414,7 +555,7 @@ export default function HomeScreen() {
           <View className="flex-row items-center mb-4">
             <Text className="text-3xl mr-3">🛡️</Text>
             <Text className="text-blue-800 dark:text-blue-200 font-bold text-xl">
-              Security Features
+              Fonctionnalités de Sécurité
             </Text>
           </View>
           
@@ -422,34 +563,35 @@ export default function HomeScreen() {
             <View className="items-center w-1/2 mb-4">
               <Text className="text-2xl mb-2">🔒</Text>
               <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                3D Secure Authentication
+                Authentification 3D Secure
               </Text>
             </View>
             <View className="items-center w-1/2 mb-4">
               <Text className="text-2xl mb-2">🛡️</Text>
               <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                PCI DSS Compliant
+                Conforme PCI DSS
               </Text>
             </View>
             <View className="items-center w-1/2">
               <Text className="text-2xl mb-2">🔐</Text>
               <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                SSL/TLS Encryption
+                Chiffrement SSL/TLS
               </Text>
             </View>
             <View className="items-center w-1/2">
               <Text className="text-2xl mb-2">✅</Text>
               <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                Real-time Verification
+                Vérification en Temps Réel
               </Text>
             </View>
           </View>
         </Animated.View>
+        */}
       </View>
-
+       
       <LoadingOverlay 
         visible={loading} 
-        message="Connecting to CMI Gateway..." 
+        message="Connexion à la Passerelle CMI..." 
         type="cmi"
       />
       
