@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, SlideInUp } from 'react-native-reanimated';
 import { apiService } from '../services/api';
 import { printerService } from '../services/printerService';
+import { updateOrderStatus } from '../services/orderService'; // Import Firebase functions
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { CustomAlert } from '../components/CustomAlert';
 import { CONFIG } from '../constants/config';
@@ -13,6 +14,8 @@ import { CONFIG } from '../constants/config';
 interface PaymentParams {
   paymentUrl: string;
   orderId: string;
+  firebaseOrderId?: string; // Firebase order ID
+  firebaseUserId?: string; // Firebase user ID
   orderTotal: string;
   customerName?: string;
   customerEmail?: string;
@@ -42,7 +45,7 @@ export default function PaymentScreen() {
       
       const receiptData = {
         orderId: orderData.id,
-        items: CONFIG.MOCK_ORDER_ITEMS,
+        items: CONFIG.MOCK_ORDER_ITEMS, // You can use actual order items here
         total: orderData.total,
         paymentMethod: 'CMI Credit Card',
         timestamp: new Date(),
@@ -98,6 +101,40 @@ export default function PaymentScreen() {
     }
   };
 
+  const updateFirebaseOrder = async (success: boolean) => {
+    if (!params.firebaseOrderId || !params.firebaseUserId) {
+      console.log('⚠️ No Firebase order data, skipping update');
+      return;
+    }
+
+    try {
+      console.log('🔥 Updating Firebase order status...');
+      const newStatus = success ? 'confirmed' : 'cancelled';
+      const paymentStatus = success ? 'paid' : 'failed';
+      
+      const updateData = {
+        paymentStatus,
+        paidAt: success ? new Date() : null,
+        cmiOrderId: params.orderId, // Link CMI order ID
+      };
+
+      const updated = await updateOrderStatus(
+        params.firebaseUserId, 
+        params.firebaseOrderId, 
+        newStatus, 
+        updateData
+      );
+
+      if (updated) {
+        console.log(`✅ Firebase order updated to ${newStatus}`);
+      } else {
+        console.error('❌ Failed to update Firebase order');
+      }
+    } catch (error) {
+      console.error('🔥 Firebase update error:', error);
+    }
+  };
+
   const handlePaymentSuccess = async () => {
     console.log('🎉 === PAYMENT SUCCESS HANDLER ===');
     setLoading(true);
@@ -115,6 +152,9 @@ export default function PaymentScreen() {
         console.log('✅ Order confirmed:', response.order.status);
         
         if (response.order.status === 'paid') {
+          // Update Firebase order status
+          await updateFirebaseOrder(true);
+          
           // Print receipt
           const printSuccess = await printReceipt(response.order);
           
@@ -126,7 +166,8 @@ export default function PaymentScreen() {
               : '⚠️ Payment successful but receipt printing failed.\nPlease contact staff for a manual receipt.'
             }\n\n` +
             `Transaction ID: ${response.order.id.slice(-8)}\n` +
-            `${params.customerEmail ? `Confirmation sent to: ${params.customerEmail}` : ''}`;
+            `${params.customerEmail ? `Confirmation sent to: ${params.customerEmail}` : ''}\n\n` +
+            `${params.firebaseOrderId ? `Order #${params.firebaseOrderId.slice(-6)} updated` : ''}`;
 
           showAlert(
             printSuccess ? 'Payment & Print Complete! 🎉' : 'Payment Successful! ⚠️',
@@ -167,6 +208,9 @@ export default function PaymentScreen() {
     if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
+
+    // Update Firebase order to cancelled
+    await updateFirebaseOrder(false);
     
     showAlert(
       'Payment Failed ❌',
@@ -176,28 +220,27 @@ export default function PaymentScreen() {
   };
 
   // Enhanced WebView navigation handling
- const handleNavigationStateChange = useCallback((navState: any) => {
-  const { url, loading } = navState;
-  console.log(`🌐 WebView navigation: ${url} loading: ${loading}`);
+  const handleNavigationStateChange = useCallback((navState: any) => {
+    const { url, loading } = navState;
+    console.log(`🌐 WebView navigation: ${url} loading: ${loading}`);
 
-  // Don't process while loading
-  if (loading) return;
+    // Don't process while loading
+    if (loading) return;
 
-  // Check for hash-based success/failure (NO MORE DEEP LINK WARNINGS!)
-  if (url.includes('#success-')) {
-    console.log('✅ Payment success detected');
-    handlePaymentSuccess();
-    return;
-  }
-  
-  if (url.includes('#fail-')) {
-    console.log('❌ Payment failure detected');
-    handlePaymentFailure();
-    return;
-  }
-}, [params.orderId]);
+    // Check for hash-based success/failure (NO MORE DEEP LINK WARNINGS!)
+    if (url.includes('#success-')) {
+      console.log('✅ Payment success detected');
+      handlePaymentSuccess();
+      return;
+    }
+    
+    if (url.includes('#fail-')) {
+      console.log('❌ Payment failure detected');
+      handlePaymentFailure();
+      return;
+    }
+  }, [params.orderId]);
 
-  // Enhanced WebView request handling
   const handleShouldStartLoadWithRequest = useCallback((request: any) => {
     const { url } = request;
     console.log('🔗 WebView wants to load:', url);
@@ -286,6 +329,9 @@ export default function PaymentScreen() {
             <Text className="text-white text-2xl font-bold mb-1">🔒 Secure Payment</Text>
             <Text className="text-cmi-100 text-sm">
               Order: {params.orderId.slice(-8)} • {params.customerName || 'Guest'}
+              {params.firebaseOrderId && (
+                <Text className="text-cmi-200"> • Firebase: #{params.firebaseOrderId.slice(-6)}</Text>
+              )}
             </Text>
           </View>
           <TouchableOpacity
@@ -306,6 +352,15 @@ export default function PaymentScreen() {
         <Text className="text-center text-4xl font-bold text-gray-900 dark:text-white mb-2">
           {parseFloat(params.orderTotal).toFixed(2)} <Text className="text-cmi-600">₺</Text>
         </Text>
+        
+        {/* Firebase Integration Status */}
+        {params.firebaseOrderId && (
+          <View className="flex-row items-center justify-center mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-xl">
+            <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
+              🔥 Firebase Order: #{params.firebaseOrderId.slice(-6)}
+            </Text>
+          </View>
+        )}
         
         {/* Print Status */}
         {printingStatus !== 'idle' && (
@@ -395,7 +450,7 @@ export default function PaymentScreen() {
           {__DEV__ && (
             <View className="bg-gray-100 dark:bg-gray-800 p-2 border-t border-gray-200 dark:border-gray-700">
               <Text className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                🔗 Deep link scheme: {CONFIG.DEEP_LINK_SCHEME}
+                🔗 Deep link scheme: {CONFIG.DEEP_LINK_SCHEME} | 🔥 Firebase: {params.firebaseOrderId?.slice(-6) || 'None'}
               </Text>
             </View>
           )}

@@ -1,53 +1,29 @@
+// app/(tabs)/_layout.tsx - FINAL FIX
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
-import { Text, View } from 'react-native';
-
-function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
-  return (
-    <View className={`p-2 rounded-full ${focused ? 'bg-primary-100 dark:bg-primary-900' : ''}`}>
-      <Text style={{ fontSize: focused ? 24 : 20 }}>{icon}</Text>
-    </View>
-  );
-}
+import { Text } from 'react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: isDark ? '#9ca3af' : '#6b7280',
+        headerShown: false,
         tabBarStyle: {
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          borderTopColor: isDark ? '#374151' : '#e5e7eb',
-          height: 85,
-          paddingBottom: 20,
-          paddingTop: 10,
-        },
-        headerStyle: {
-          backgroundColor: isDark ? '#1f2937' : '#3b82f6',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
+          backgroundColor: '#ffffff',
         },
       }}
     >
       <Tabs.Screen
-        name="home"
+        name="index"
         options={{
           title: 'Home',
-          headerTitle: 'CMI Payment v2.0',
-          tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} />,
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
-          title: 'Analytics',
-          tabBarIcon: ({ focused }) => <TabIcon icon="📊" focused={focused} />,
+          title: 'Analytics', 
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📊</Text>,
         }}
       />
     </Tabs>
