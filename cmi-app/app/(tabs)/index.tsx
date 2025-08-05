@@ -321,7 +321,7 @@ export default function HomeScreen() {
         >
           <View className="flex-row items-center justify-center mb-2">
             <Image 
-              source={require('../../assets/logo.jpg')} 
+              source={require('../../assets/logo.png')} 
               style={{ width: 80, height: 80 }} 
               className="rounded-2xl mr-4"
             />
