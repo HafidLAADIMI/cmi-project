@@ -9,21 +9,23 @@ import {initializeApp} from 'firebase/app';
 
 const firebaseConfig = {
 
-    apiKey: "AIzaSyDu3tFrjlkzvegTcfcLkBfyrLmj1B8p18k",
+  apiKey: "AIzaSyA0HdeDYIv38UHICf7tsFaXWtFNG_5WUSE",
 
-    authDomain: "dixie-latestdb.firebaseapp.com",
+  authDomain: "afood-a8ea4.firebaseapp.com",
 
-    projectId: "dixie-latestdb",
+  projectId: "afood-a8ea4",
 
-    storageBucket: "dixie-latestdb.firebasestorage.app",
+  storageBucket: "afood-a8ea4.firebasestorage.app",
 
-    messagingSenderId: "942778815273",
+  messagingSenderId: "555100471697",
 
-    appId: "1:942778815273:web:6d0ff3b4ed8edee1461d38",
+  appId: "1:555100471697:web:c259b06146389fa9901a30",
 
-    measurementId: "G-HQZV2WR7VW"
+  measurementId: "G-8W46V6QGQV"
 
 };
+
+
 
 
 export const app = initializeApp(firebaseConfig);

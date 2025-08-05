@@ -2,9 +2,7 @@ import Constants from 'expo-constants';
 
 export const CONFIG = {
   // IMPORTANT: Replace YOUR_IP with your actual IP address
-  API_BASE_URL: __DEV__ 
-    ? 'http://192.168.1.75:3000'  // ← Change this to your actual IP
-    : 'https://your-production-backend.com',
+  API_BASE_URL:'https://cmi-server-30rk1xwhm-hafids-projects-170e3819.vercel.app/',
   
   DEEP_LINK_SCHEME: 'cmipaymentapp',
   

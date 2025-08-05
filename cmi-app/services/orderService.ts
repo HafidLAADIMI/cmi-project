@@ -83,7 +83,7 @@ export const Order = {
             driverId: orderData.driverId || null,
 
             // Customer details
-            customerName: orderData.customerName || '',
+            customerName: orderData.userEmail || '',
             customerPhone: orderData.phoneNumber || orderData.customerPhone || '',
 
             // Address handling

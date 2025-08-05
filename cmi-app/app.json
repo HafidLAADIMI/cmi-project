@@ -1,44 +1,58 @@
 {
   "expo": {
-    "name": "CMI Payment App",
-    "slug": "cmi-payment-app",
+    "name": "Afoud-printer",
+    "slug": "Afoud-printer",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.jpg",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.cmipaymentapp"
+      "bundleIdentifier": "com.yourcompany.afoudprinter"
     },
     "android": {
+      "permissions": [
+        "INTERNET",
+        "VIBRATE",
+        "CAMERA"
+      ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo.jpg",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.cmipaymentapp",
+      "package": "com.yourcompany.afoudprinter",
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
             {
-              "scheme": "cmipaymentapp"
+              "scheme": "afoudprinter"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logo.jpg"
     },
     "scheme": "cmipaymentapp",
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "94bd22c8-6486-4fb4-8541-74412df3f4ec"
+      }
+    }
   }
 }

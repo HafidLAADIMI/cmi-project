@@ -493,13 +493,15 @@ export default function HomeScreen() {
 
         {/* Options de Paiement */}
         <View className="mt-6 space-y-4">
-          {/* Paiement par Carte CMI */}
+          {/* Paiement par Carte CMI 
           <PaymentCard
             total={selectedOrder?.total || 0}
             onPress={handlePayment}
             loading={loading}
             delay={400}
           />
+
+          */}
           
           {/* Paiement en Espèces */}
           <Animated.View
