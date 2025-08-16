@@ -1,17 +1,14 @@
-// app/index.tsx - Version française avec logo AFOUD
+// app/index.tsx - Simple & Clean Version
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Image } from 'react-native';
-import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { CONFIG } from '../constants/config';
-import { apiService } from '../services/api';
 import { printerService } from '../services/printerService';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { CustomAlert } from '../components/CustomAlert';
 import { getOrders, Order, updateOrderStatus } from '../services/orderService';
 
-// Interface mise à jour pour correspondre au service de commandes réel
 interface RealFirebaseOrder {
   id: string;
   userId: string;
@@ -54,8 +51,6 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState<RealFirebaseOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<RealFirebaseOrder | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
   const [alert, setAlert] = useState({
     visible: false,
     title: '',
@@ -63,39 +58,27 @@ export default function HomeScreen() {
     type: 'info' as const,
   });
 
-  // Add this function inside your HomeScreen component, before the other functions
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    setAlert({
+      visible: true,
+      title,
+      message,
+      type
+    });
+  };
 
-const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-  setAlert({
-    visible: true,
-    title,
-    message,
-    type
-  });
-};
-
-  // Charger les commandes en utilisant votre service réel
   const loadOrders = async () => {
     try {
-      console.log('📊 Chargement des commandes depuis le service Firebase réel...');
       const allOrders = await getOrders();
-      
-      // Filtrer les commandes en attente qui nécessitent un paiement
       const pendingOrders = allOrders.filter(order => 
         order.status === 'pending' && order.paymentStatus === 'unpaid'
       );
       
       setOrders(pendingOrders);
       
-      // Sélectionner automatiquement la première commande si aucune n'est sélectionnée
       if (pendingOrders.length > 0 && !selectedOrder) {
-        const firstOrder = pendingOrders[0];
-        setSelectedOrder(firstOrder);
-        setCustomerName(firstOrder.customerName);
-        setCustomerEmail(firstOrder.customerPhone);
+        setSelectedOrder(pendingOrders[0]);
       }
-      
-      console.log(`✅ Chargé ${pendingOrders.length} commandes en attente sur ${allOrders.length} au total`);
     } catch (error) {
       console.error('❌ Erreur lors du chargement des commandes:', error);
     }
@@ -108,10 +91,7 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        apiService.checkHealth(),
-        loadOrders()
-      ]);
+      await loadOrders();
       if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
         await Haptics.selectionAsync();
       }
@@ -135,11 +115,7 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
     setLoading(true);
     
     try {
-      console.log('💵 === PAIEMENT EN ESPÈCES DÉBUT ===');
-      console.log('Commande:', selectedOrder.id);
-      console.log('Montant:', selectedOrder.total);
-      
-      // Mettre à jour le statut Firebase vers confirmé et payé
+      // Mettre à jour le statut Firebase
       const updated = await updateOrderStatus(
         selectedOrder.userId, 
         selectedOrder.id, 
@@ -155,8 +131,6 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
       if (!updated) {
         throw new Error('Échec de la mise à jour de la commande');
       }
-
-      console.log('✅ Statut de commande Firebase mis à jour');
 
       // Préparer les données du reçu
       const receiptData = {
@@ -181,49 +155,25 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
           taxId: 'AFOUD123456789',
         }
       };
-
-      console.log('🖨️ Impression du reçu...');
       
       // Imprimer le reçu
       const printSuccess = await printerService.printReceipt(receiptData);
       
-      if (printSuccess) {
-        console.log('✅ Reçu imprimé avec succès');
-        
-        if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-
-        const successMessage = `Paiement en espèces encaissé avec succès !\n\n` +
-          `💰 Montant : ${selectedOrder.total.toFixed(2)} DH\n` +
-          `👤 Client : ${selectedOrder.customerName}\n` +
-          `📦 Commande : #${selectedOrder.id.slice(-6)}\n\n` +
-          `✅ Reçu imprimé avec succès !\n` +
-          `Veuillez remettre le reçu au client.\n\n` +
-          `Commande marquée comme payée et confirmée.`;
-
-        showAlert('Paiement Espèces Réussi ! 🎉', successMessage, 'success');
-
-        // Recharger les commandes pour supprimer celle-ci de la liste
-        await loadOrders();
-        
-      } else {
-        console.warn('⚠️ Impression du reçu échouée');
-        
-        const warningMessage = `Paiement encaissé avec succès mais l'impression a échoué.\n\n` +
-          `💰 Montant : ${selectedOrder.total.toFixed(2)} DH\n` +
-          `👤 Client : ${selectedOrder.customerName}\n` +
-          `📦 Commande : #${selectedOrder.id.slice(-6)}\n\n` +
-          `⚠️ Veuillez imprimer un reçu manuel.\n` +
-          `La commande est marquée comme payée.`;
-
-        showAlert('Paiement Réussi - Problème d\'Impression ⚠️', warningMessage, 'warning');
-        
-        // Recharger les commandes même si l'impression a échoué
-        await loadOrders();
+      if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      
-      console.log('✅ === PAIEMENT EN ESPÈCES TERMINÉ ===');
+
+      const successMessage = `Paiement encaissé avec succès !\n\n` +
+        `💰 Montant : ${selectedOrder.total.toFixed(2)} DH\n` +
+        `👤 Client : ${selectedOrder.customerName}\n` +
+        `📦 Commande : #${selectedOrder.id.slice(-6)}\n\n` +
+        `${printSuccess ? '✅ Reçu imprimé' : '⚠️ Impression échouée'}\n` +
+        `Commande marquée comme payée.`;
+
+      showAlert('Paiement Réussi ! 🎉', successMessage, 'success');
+
+      // Recharger les commandes
+      await loadOrders();
       
     } catch (error) {
       console.error('💥 Erreur paiement espèces:', error);
@@ -234,7 +184,7 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
       
       showAlert(
         'Erreur de Paiement ❌', 
-        'Une erreur s\'est produite lors du traitement du paiement en espèces. Veuillez réessayer.',
+        'Une erreur s\'est produite lors du traitement du paiement.',
         'error'
       );
     } finally {
@@ -242,75 +192,11 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
     }
   };
 
-  const handlePayment = async () => {
-    if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    setLoading(true);
-    
-    try {
-      const isHealthy = await apiService.checkHealth();
-      if (!isHealthy) {
-        showAlert('Erreur de Connexion 🌐', 'Impossible de se connecter au serveur de paiement.', 'error');
-        return;
-      }
-
-      // Utiliser les articles de commande réels avec la structure appropriée
-      const orderItems = selectedOrder!.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity
-      }));
-
-      const response = await apiService.initiateCmiPayment(orderItems, {
-        name: customerName,
-        email: customerEmail,
-      });
-      
-      if (response.success && response.paymentUrl) {
-        if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-
-        router.push({
-          pathname: '/payment',
-          params: {
-            paymentUrl: response.paymentUrl,
-            orderId: response.orderId,
-            firebaseOrderId: selectedOrder!.id,
-            firebaseUserId: selectedOrder!.userId,
-            orderTotal: selectedOrder!.total.toString(),
-            customerName,
-            customerEmail,
-          },
-        });
-      } else {
-        showAlert('Erreur de Paiement 🏦', response.error || 'Échec de l\'initialisation du paiement.', 'error');
-      }
-    } catch (error) {
-      console.error('Erreur de paiement:', error);
-      showAlert('Erreur Inattendue ⚠️', 'Une erreur s\'est produite. Veuillez réessayer.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const selectOrder = (order: RealFirebaseOrder) => {
     setSelectedOrder(order);
-    setCustomerName(order.customerName);
-    setCustomerEmail(order.customerPhone);
-  };
-
-  const formatOrderDate = (orderData: any) => {
-    if (orderData.createdAt?.toDate) {
-      return orderData.createdAt.toDate().toLocaleDateString('fr-FR');
+    if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+      Haptics.selectionAsync();
     }
-    if (orderData.date) {
-      return new Date(orderData.date).toLocaleDateString('fr-FR');
-    }
-    return new Date().toLocaleDateString('fr-FR');
   };
 
   return (
@@ -324,10 +210,11 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
       }
     >
       <View className="p-6">
-        {/* En-tête avec Logo AFOUD */}
+        {/* En-tête Simple */}
         <Animated.View 
           entering={FadeInDown.delay(100)}
-          className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6 shadow-sm"
+          className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 }}
         >
           <View className="flex-row items-center justify-center mb-2">
             <Image 
@@ -340,20 +227,21 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
                 AFOUD
               </Text>
               <Text className="text-gray-600 dark:text-gray-400 text-center mt-1">
-                Plateforme de Paiement
+                Terminal de Paiement
               </Text>
             </View>
           </View>
         </Animated.View>
 
-        {/* Sélection de Commande */}
+        {/* Commandes en Attente */}
         {orders.length > 0 ? (
           <Animated.View 
             entering={FadeInDown.delay(200)}
             className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
+            style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 }}
           >
             <Text className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-              📋 Sélectionner une Commande à Payer
+              📋 Commandes à Payer ({orders.length})
             </Text>
             
             {orders.map((order) => (
@@ -385,16 +273,8 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
                     <Text className="text-gray-600 dark:text-gray-400 text-sm mb-1">
                       📞 {order.customerPhone}
                     </Text>
-                    <Text className="text-gray-600 dark:text-gray-400 text-sm mb-1">
-                      📍 {order.address.length > 40 ? order.address.substring(0, 40) + '...' : order.address}
-                    </Text>
-                    {order.cuisineName && (
-                      <Text className="text-gray-500 dark:text-gray-400 text-xs mb-1">
-                        🍽️ {order.cuisineName}
-                      </Text>
-                    )}
                     <Text className="text-gray-500 dark:text-gray-400 text-sm">
-                      📦 {order.items.length} articles • {Order.getStatusDisplay(order.status)}
+                      📦 {order.items.length} articles
                     </Text>
                   </View>
                   
@@ -402,44 +282,7 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
                     <Text className="text-2xl font-bold text-blue-600 mb-1">
                       {order.total.toFixed(2)} DH
                     </Text>
-                    <Text className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatOrderDate(order)}
-                    </Text>
-                    {order.deliveryFee > 0 && (
-                      <Text className="text-xs text-gray-500">
-                        +{order.deliveryFee.toFixed(2)} DH livraison
-                      </Text>
-                    )}
                   </View>
-                </View>
-                
-                {/* Aperçu des Articles de la Commande */}
-                <View className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                  {order.items.slice(0, 2).map((item, index) => (
-                    <View key={index} className="flex-row justify-between items-center">
-                      <Text className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                        • {item.quantity}x {item.name}
-                        {item.variations.length > 0 && (
-                          <Text className="text-xs text-gray-500">
-                            {' '}({item.variations.map(v => v.name).join(', ')})
-                          </Text>
-                        )}
-                      </Text>
-                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-2">
-                        {item.subtotal.toFixed(2)} DH
-                      </Text>
-                    </View>
-                  ))}
-                  {order.items.length > 2 && (
-                    <Text className="text-sm text-gray-500 dark:text-gray-500">
-                      ... et {order.items.length - 2} autres articles
-                    </Text>
-                  )}
-                  {order.notes && (
-                    <Text className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                      💬 {order.notes}
-                    </Text>
-                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -456,155 +299,61 @@ const showAlert = (title: string, message: string, type: 'success' | 'error' | '
               </Text>
             </View>
             <Text className="text-yellow-700 dark:text-yellow-300 text-sm">
-              Aucune commande trouvée nécessitant un paiement. Les commandes apparaîtront ici lorsque les clients les passeront.
+              Toutes les commandes ont été traitées.
             </Text>
           </Animated.View>
         )}
 
-        {/* Informations Client (commenté pour le moment)
-        <Animated.View 
+        {/* Bouton de Paiement */}
+        <Animated.View
           entering={FadeInDown.delay(300)}
-          className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6"
+          className="bg-green-600 rounded-3xl p-6"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
         >
-          <View className="flex-row items-center mb-4">
-            <View className="bg-blue-100 dark:bg-blue-900/30 rounded-full p-3 mr-4">
-              <Text className="text-2xl">👤</Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <View>
+              <Text className="text-white/80 text-sm font-medium">Paiement Direct</Text>
+              <Text className="text-white text-xl font-bold">Espèces</Text>
             </View>
-            <Text className="text-xl font-bold text-gray-900 dark:text-white">
-              Informations Client
-            </Text>
+            <View className="bg-white/20 rounded-2xl p-3">
+              <Text className="text-3xl">💵</Text>
+            </View>
           </View>
-          
-          <View className="mb-4">
-            <Text className="text-gray-700 dark:text-gray-300 text-sm font-medium mb-2">
-              Nom du Client
-            </Text>
-            <TextInput
-              value={customerName}
-              onChangeText={setCustomerName}
-              placeholder="Saisir le nom du client"
-              className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white"
-            />
-          </View>
-          
-          <View>
-            <Text className="text-gray-700 dark:text-gray-300 text-sm font-medium mb-2">
-              Téléphone/Email
-            </Text>
-            <TextInput
-              value={customerEmail}
-              onChangeText={setCustomerEmail}
-              placeholder="Saisir téléphone ou email"
-              className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white"
-            />
-          </View>
-        </Animated.View>
-        */}
 
-        {/* Options de Paiement */}
-        <View className="mt-6 space-y-4">
-          {/* Paiement par Carte CMI 
-          <PaymentCard
-            total={selectedOrder?.total || 0}
-            onPress={handlePayment}
-            loading={loading}
-            delay={400}
-          />
+          <View className="bg-white/10 rounded-2xl p-4 mb-4">
+            <Text className="text-white/80 text-sm font-medium mb-2">Montant à Encaisser</Text>
+            <Text className="text-white text-3xl font-bold">
+              {selectedOrder?.total.toFixed(2) || '0.00'} <Text className="text-xl">DH</Text>
+            </Text>
+          </View>
 
-          */}
-          
-          {/* Paiement en Espèces */}
-          <Animated.View
-            entering={FadeInDown.delay(450)}
-            className="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-6 shadow-lg"
+          <TouchableOpacity
+            onPress={handleCashPayment}
+            disabled={loading || !selectedOrder}
+            className="bg-white py-4 px-6 rounded-2xl disabled:opacity-50"
           >
-            <View className="flex-row items-center justify-between mb-4">
-              <View>
-                <Text className="text-white/80 text-sm font-medium">Paiement Direct</Text>
-                <Text className="text-white text-xl font-bold">Espèces</Text>
-              </View>
-              <View className="bg-white/20 rounded-2xl p-3">
-                <Text className="text-3xl">💵</Text>
-              </View>
+            <View className="flex-row items-center justify-center">
+              {loading ? (
+                <>
+                  <View className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-3" />
+                  <Text className="text-green-700 font-bold text-lg">Traitement...</Text>
+                </>
+              ) : (
+                <>
+                  <Text className="text-2xl mr-3">🖨️</Text>
+                  <Text className="text-green-700 font-bold text-lg">
+                    Encaisser & Imprimer
+                  </Text>
+                </>
+              )}
             </View>
-
-            <View className="bg-white/10 rounded-2xl p-4 mb-4 backdrop-blur-sm">
-              <Text className="text-white/80 text-sm font-medium mb-2">Montant à Encaisser</Text>
-              <Text className="text-white text-3xl font-bold">
-                {selectedOrder?.total.toFixed(2) || '0.00'} <Text className="text-xl">DH</Text>
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleCashPayment}
-              disabled={loading || !selectedOrder}
-              className="bg-white py-4 px-6 rounded-2xl shadow-lg active:scale-95 disabled:opacity-50"
-            >
-              <View className="flex-row items-center justify-center">
-                {loading ? (
-                  <>
-                    <View className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-3" />
-                    <Text className="text-green-700 font-bold text-lg">Impression en cours...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text className="text-2xl mr-3">🖨️</Text>
-                    <Text className="text-green-700 font-bold text-lg">
-                      Encaisser & Imprimer
-                    </Text>
-                  </>
-                )}
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-
-        {/* Fonctionnalités et Sécurité (commenté pour le moment)
-        <Animated.View 
-          entering={FadeInDown.delay(500)}
-          className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-3xl p-6 mt-6"
-        >
-          <View className="flex-row items-center mb-4">
-            <Text className="text-3xl mr-3">🛡️</Text>
-            <Text className="text-blue-800 dark:text-blue-200 font-bold text-xl">
-              Fonctionnalités de Sécurité
-            </Text>
-          </View>
-          
-          <View className="flex-row flex-wrap justify-between">
-            <View className="items-center w-1/2 mb-4">
-              <Text className="text-2xl mb-2">🔒</Text>
-              <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                Authentification 3D Secure
-              </Text>
-            </View>
-            <View className="items-center w-1/2 mb-4">
-              <Text className="text-2xl mb-2">🛡️</Text>
-              <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                Conforme PCI DSS
-              </Text>
-            </View>
-            <View className="items-center w-1/2">
-              <Text className="text-2xl mb-2">🔐</Text>
-              <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                Chiffrement SSL/TLS
-              </Text>
-            </View>
-            <View className="items-center w-1/2">
-              <Text className="text-2xl mb-2">✅</Text>
-              <Text className="text-blue-700 dark:text-blue-300 text-sm font-medium text-center">
-                Vérification en Temps Réel
-              </Text>
-            </View>
-          </View>
+          </TouchableOpacity>
         </Animated.View>
-        */}
       </View>
        
       <LoadingOverlay 
         visible={loading} 
-        message="Connexion à la Passerelle CMI..." 
-        type="cmi"
+        message="Traitement du paiement..." 
       />
       
       <CustomAlert

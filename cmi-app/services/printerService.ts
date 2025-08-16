@@ -179,7 +179,6 @@ private async loadSunmiModule(): Promise<boolean> {
     return true;
   }
 }
-
 private async printReal(receiptData: ReceiptData): Promise<void> {
   console.log('🖨️ Sending to Sunmi printer...');
   
@@ -195,9 +194,9 @@ private async printReal(receiptData: ReceiptData): Promise<void> {
     const receiptText = this.formatReceiptText(receiptData);
     await this.SunmiPrinter.printText(receiptText);
     
-    // Add space and cut
+    // Add space and cut - REMOVE ONLY THIS LINE
     await this.SunmiPrinter.printText('\n\n\n');
-    await this.SunmiPrinter.cutPaper();
+    // await this.SunmiPrinter.cutPaper(); <- REMOVE THIS LINE ONLY
     
     console.log('✅ Basic print commands completed successfully');
     
@@ -206,7 +205,6 @@ private async printReal(receiptData: ReceiptData): Promise<void> {
     throw error;
   }
 }
-
   private async printSimulation(receiptData: ReceiptData): Promise<void> {
     console.log('--- VIRTUAL RECEIPT START ---');
     console.log(this.formatReceiptText(receiptData));
