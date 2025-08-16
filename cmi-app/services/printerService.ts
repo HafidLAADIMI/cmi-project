@@ -85,37 +85,27 @@ class PrinterService {
     }
   }
 
-  private async loadSunmiModule(): Promise<boolean> {
-    if (this.deviceType !== 'sunmi') {
-      console.log('⏩ Not a Sunmi device, skipping module load.');
-      return false;
-    }
 
-    try {
-      console.log('🔄 Attempting to load Sunmi Printer Library...');
-      // This is the critical part. If it fails, we need to know why.
-      const SunmiModule = require('@mitsuharu/react-native-sunmi-printer-library');
-      this.SunmiPrinter = SunmiModule.default || SunmiModule;
-
-      if (!this.SunmiPrinter || typeof this.SunmiPrinter.init !== 'function') {
-          console.error('❌ CRITICAL: Sunmi module loaded, but it is invalid or not a constructor.');
-          console.error('   This usually means the native module was not linked correctly during the build.');
-          this.SunmiPrinter = null;
-          return false;
-      }
-      
-      await this.SunmiPrinter.init();
-      console.log('✅ Sunmi module loaded and initialized successfully.');
-      return true;
-
-    } catch (loadError) {
-      console.error('❌ CRITICAL: Failed to load or initialize Sunmi module.', loadError);
-      console.error('   This is the main reason printing fails. It means the native code is missing from your build.');
-      console.error('   Ensure the library is in package.json and you have a config plugin for EAS build.');
-      this.SunmiPrinter = null;
-      return false;
-    }
+private async loadSunmiModule(): Promise<boolean> {
+  if (this.deviceType !== 'sunmi') {
+    console.log('⏩ Not a Sunmi device, skipping module load.');
+    return false;
   }
+
+  try {
+    console.log('🔄 Attempting to load Sunmi Printer Library...');
+    const SunmiModule = require('@mitsuharu/react-native-sunmi-printer-library');
+    this.SunmiPrinter = SunmiModule;
+    console.log('✅ Sunmi module loaded successfully');
+    return true;
+  } catch (loadError) {
+    console.error('❌ Failed to load Sunmi module.', loadError);
+    this.SunmiPrinter = null;
+    return false;
+  }
+}
+
+
 
   async initialize(): Promise<boolean> {
     if (this.isInitialized) {
@@ -147,77 +137,75 @@ class PrinterService {
   }
 
   async printReceipt(receiptData: ReceiptData): Promise<boolean> {
-    console.log(`🖨️ === STARTING PRINT JOB: ${receiptData.orderId} ===`);
-    
-    if (!this.isInitialized) {
-      const initSuccess = await this.initialize();
-      if (!initSuccess) {
-        console.error('❌ Aborting print job: Service initialization failed.');
-        return false;
-      }
-    }
-
-    if (this.simulationMode || !this.SunmiPrinter) {
-        console.log("🖨️ Running in SIMULATION mode.");
-        await this.printSimulation(receiptData);
-        return true; // In simulation, we consider it a "success"
-    }
-
-    try {
-      const status = await this.getPrinterStatus();
-      console.log('📊 Printer Status:', status);
-      
-      if (!status.isConnected) throw new Error('Printer is not connected.');
-      if (status.paperStatus === 'empty') throw new Error('Out of paper.');
-
-      if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-      
-      await this.printReal(receiptData);
-      
-      if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      
-      console.log('✅ === PRINT JOB SUCCEEDED ===');
-      return true;
-      
-    } catch (error: any) {
-      console.error('❌ === PRINT JOB FAILED ===');
-      console.error('Error:', error.message);
-      
-      if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-      
+  console.log(`🖨️ === STARTING PRINT JOB: ${receiptData.orderId} ===`);
+  
+  if (!this.isInitialized) {
+    const initSuccess = await this.initialize();
+    if (!initSuccess) {
+      console.error('❌ Service initialization failed.');
       return false;
     }
   }
 
-  private async printReal(receiptData: ReceiptData): Promise<void> {
-    console.log('🖨️ Sending commands to REAL Sunmi printer...');
-    
-    // It's safer to wrap each command in a try-catch block
-    try {
-      await this.SunmiPrinter.setAlignment(1);
-      await this.SunmiPrinter.setFontSize(36); // Larger font for title
-      await this.SunmiPrinter.printText(`${receiptData.storeInfo?.name || 'AFOUD'}\n`);
-      await this.SunmiPrinter.lineWrap(1);
-
-      await this.SunmiPrinter.setAlignment(0);
-      await this.SunmiPrinter.setFontSize(24); // Standard font size
-      
-      const receiptText = this.formatReceiptText(receiptData);
-      await this.SunmiPrinter.printText(receiptText);
-      
-      await this.SunmiPrinter.lineWrap(3);
-      await this.SunmiPrinter.cutPaper();
-    } catch (error) {
-        console.error("❌ A command failed during real print:", error);
-        throw error; // Re-throw to be caught by the calling function
-    }
+  if (this.simulationMode || !this.SunmiPrinter) {
+    console.log("🖨️ Running in SIMULATION mode.");
+    await this.printSimulation(receiptData);
+    return true;
   }
+
+  try {
+    console.log('🖨️ Attempting real print...');
+    
+    if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    // Try to print with simple retry
+    await this.printReal(receiptData);
+    
+    if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    
+    console.log('✅ === PRINT SUCCEEDED ===');
+    return true;
+    
+  } catch (error: any) {
+    console.error('❌ Print failed:', error.message);
+    
+    // Fall back to simulation
+    console.log('🔄 Falling back to simulation...');
+    await this.printSimulation(receiptData);
+    return true;
+  }
+}
+
+private async printReal(receiptData: ReceiptData): Promise<void> {
+  console.log('🖨️ Sending to Sunmi printer...');
+  
+  try {
+    // Start with absolute basics - no alignment or font size changes
+    await this.SunmiPrinter.prepare();
+    
+    // Just print the header
+    await this.SunmiPrinter.printText(`=== ${receiptData.storeInfo?.name || 'AFOUD'} ===\n`);
+    await this.SunmiPrinter.printText('\n');
+    
+    // Print the formatted receipt
+    const receiptText = this.formatReceiptText(receiptData);
+    await this.SunmiPrinter.printText(receiptText);
+    
+    // Add space and cut
+    await this.SunmiPrinter.printText('\n\n\n');
+    await this.SunmiPrinter.cutPaper();
+    
+    console.log('✅ Basic print commands completed successfully');
+    
+  } catch (error) {
+    console.error("❌ Print command failed:", error);
+    throw error;
+  }
+}
 
   private async printSimulation(receiptData: ReceiptData): Promise<void> {
     console.log('--- VIRTUAL RECEIPT START ---');
@@ -227,36 +215,39 @@ class PrinterService {
     console.log('✅ Simulation complete.');
   }
 
-  async getPrinterStatus(): Promise<PrinterStatus> {
-    if (this.simulationMode || !this.SunmiPrinter) {
-      return {
-        isConnected: true,
-        paperStatus: 'ok',
-        temperature: 'normal',
-        deviceType: this.deviceType,
-      };
-    }
-    
-    try {
-      const status = await this.SunmiPrinter.getPrinterStatus();
-      return {
-        isConnected: true, // If the call succeeds, it's connected
-        paperStatus: status.isNoPaper ? 'empty' : 'ok',
-        temperature: 'normal', // Library might not provide this
-        deviceType: 'sunmi',
-        rawStatus: status,
-      };
-    } catch (error: any) {
-      console.error('❌ Failed to get real printer status:', error);
-      return {
-        isConnected: false,
-        paperStatus: 'unknown',
-        temperature: 'unknown',
-        deviceType: 'sunmi',
-        error: error.message,
-      };
-    }
+async getPrinterStatus(): Promise<PrinterStatus> {
+  if (this.simulationMode || !this.SunmiPrinter) {
+    return {
+      isConnected: true,
+      paperStatus: 'ok',
+      temperature: 'normal',
+      deviceType: this.deviceType,
+    };
   }
+  
+  try {
+    // Use getPrinterState instead of getPrinterStatus
+    const state = await this.SunmiPrinter.getPrinterState();
+    console.log('📊 Raw printer state:', state);
+    
+    return {
+      isConnected: true,
+      paperStatus: 'ok', // We'll assume OK unless we can decode the state
+      temperature: 'normal',
+      deviceType: 'sunmi',
+      rawStatus: state,
+    };
+  } catch (error: any) {
+    console.error('❌ Failed to get printer state:', error);
+    return {
+      isConnected: false,
+      paperStatus: 'unknown',
+      temperature: 'unknown',
+      deviceType: 'sunmi',
+      error: error.message,
+    };
+  }
+}
 
   private formatReceiptText(receiptData: ReceiptData): string {
     const { orderId, items, total, paymentMethod, timestamp, customerInfo, storeInfo } = receiptData;

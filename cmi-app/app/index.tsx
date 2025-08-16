@@ -1,16 +1,15 @@
-// app/(tabs)/index.tsx - Version française avec logo AFOUD
+// app/index.tsx - Version française avec logo AFOUD
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Image } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { CONFIG } from '../../constants/config';
-import { apiService } from '../../services/api';
-import { printerService } from '../../services/printerService';
-import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { CustomAlert } from '../../components/CustomAlert';
-import { PaymentCard } from '../../components/PaymentCard';
-import { getOrders, Order, updateOrderStatus } from '../../services/orderService';
+import { CONFIG } from '../constants/config';
+import { apiService } from '../services/api';
+import { printerService } from '../services/printerService';
+import { LoadingOverlay } from '../components/LoadingOverlay';
+import { CustomAlert } from '../components/CustomAlert';
+import { getOrders, Order, updateOrderStatus } from '../services/orderService';
 
 // Interface mise à jour pour correspondre au service de commandes réel
 interface RealFirebaseOrder {
@@ -63,6 +62,17 @@ export default function HomeScreen() {
     message: '',
     type: 'info' as const,
   });
+
+  // Add this function inside your HomeScreen component, before the other functions
+
+const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+  setAlert({
+    visible: true,
+    title,
+    message,
+    type
+  });
+};
 
   // Charger les commandes en utilisant votre service réel
   const loadOrders = async () => {
@@ -321,7 +331,7 @@ export default function HomeScreen() {
         >
           <View className="flex-row items-center justify-center mb-2">
             <Image 
-              source={require('../../assets/logo.png')} 
+              source={require('../assets/logo.png')} 
               style={{ width: 80, height: 80 }} 
               className="rounded-2xl mr-4"
             />

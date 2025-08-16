@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Afoud-printer",
-    "slug": "Afoud-printer",
+    "name": "Afood-printer",
+    "slug": "Afood-printer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
@@ -13,25 +13,27 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.afoudprinter"
+      "bundleIdentifier": "com.afoodprinter.app"
     },
     "android": {
       "permissions": [
         "INTERNET",
         "VIBRATE",
-        "CAMERA"
+        "CAMERA",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.afoudprinter",
+      "package": "com.afoodprinter.app",
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
             {
-              "scheme": "afoudprinter"
+              "scheme": "afoodprinter"
             }
           ],
           "category": [
@@ -44,14 +46,14 @@
     "web": {
       "favicon": "./assets/logo.png"
     },
-    "scheme": "cmipaymentapp",
+    "scheme": "afoodprinter",
     "plugins": [
-      "expo-router"
+      "expo-dev-client"
     ],
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "94bd22c8-6486-4fb4-8541-74412df3f4ec"
+        "projectId": "9d96e1dc-d188-4642-ad13-07222aa0339f"
       }
     }
   }

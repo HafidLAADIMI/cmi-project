@@ -1,15 +1,13 @@
-// app/_layout.tsx - FIXED VERSION
-import { Stack } from 'expo-router';
-import "../global.css"
+// app/_layout.tsx - CORRECTED VERSION
+import "../global.css";
+import { Slot } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="payment" options={{ headerShown: false }} />
-    </Stack>
+    // Wrap your entire app with SafeAreaProvider
+    <SafeAreaProvider>
+      <Slot />
+    </SafeAreaProvider>
   );
 }

@@ -1,4 +1,4 @@
-// services/orderService.js
+// services/orderService.js - WITH BETTER ERROR HANDLING
 import {
     collection,
     collectionGroup,
@@ -11,9 +11,40 @@ import {
     serverTimestamp,
     where,
     documentId,
-    Timestamp
+    Timestamp,
+    enableNetwork,
+    disableNetwork
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+
+// Helper function to retry operations
+const retryOperation = async (operation, retries = 3, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            console.log(`Attempt ${i + 1} failed:`, error.message);
+            
+            if (i === retries - 1) {
+                throw error; // Last attempt failed
+            }
+            
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        }
+    }
+};
+
+// Helper function to check network and reconnect if needed
+const ensureConnection = async () => {
+    try {
+        // Try to enable network connection
+        await enableNetwork(db);
+        console.log('✅ Firestore network enabled');
+    } catch (error) {
+        console.warn('⚠️ Network enable failed:', error.message);
+    }
+};
 
 // Helper function to extract coordinates from different possible formats
 function _getCoordinates(orderData) {
@@ -144,11 +175,14 @@ export const Order = {
 };
 
 /**
- * Get all orders from user subcollections
+ * Get all orders from user subcollections with retry logic
  */
 export const getOrders = async () => {
-    try {
+    const loadOrdersOperation = async () => {
         console.log("[getOrders] Loading all orders from user subcollections...");
+
+        // Ensure connection first
+        await ensureConnection();
 
         // Query all orders across user subcollections
         const ordersQuery = query(collectionGroup(db, 'orders'));
@@ -169,8 +203,14 @@ export const getOrders = async () => {
 
         console.log(`[getOrders] ${orders.length} orders loaded`);
         return orders;
+    };
+
+    try {
+        return await retryOperation(loadOrdersOperation, 3, 2000);
     } catch (error) {
-        console.error('Error getting orders:', error);
+        console.error('❌ Error getting orders after retries:', error);
+        
+        // Return empty array if all retries failed
         return [];
     }
 };
@@ -179,13 +219,14 @@ export const getOrders = async () => {
  * Get a specific order by user ID and order ID
  */
 export const getOrderOnce = async (userId, orderId) => {
-    try {
+    const getOrderOperation = async () => {
         if (!userId || !orderId) {
             console.error('[getOrderOnce] Missing user ID or order ID');
             return null;
         }
 
-        // Get from user's orders collection
+        await ensureConnection();
+
         const orderRef = doc(db, 'users', userId, 'orders', orderId);
         const orderSnap = await getDoc(orderRef);
 
@@ -200,23 +241,30 @@ export const getOrderOnce = async (userId, orderId) => {
             id: orderId,
             userId
         });
+    };
+
+    try {
+        return await retryOperation(getOrderOperation, 3, 1000);
     } catch (error) {
-        console.error(`[getOrderOnce] Error loading order:`, error);
+        console.error(`[getOrderOnce] Error loading order after retries:`, error);
         return null;
     }
 };
 
 /**
- * Update order status
+ * Update order status with retry logic
  */
 export const updateOrderStatus = async (userId, orderId, newStatus, additionalData = {}) => {
-    try {
+    const updateOperation = async () => {
         if (!userId || !orderId || !newStatus) {
             console.error('[updateOrderStatus] Missing userId, orderId, or newStatus');
             return false;
         }
 
         console.log(`[updateOrderStatus] Updating order ${orderId} for user ${userId} to status: ${newStatus}`);
+        
+        await ensureConnection();
+        
         const orderRef = doc(db, 'users', userId, 'orders', orderId);
 
         // Update data with new status and any additional fields
@@ -229,8 +277,12 @@ export const updateOrderStatus = async (userId, orderId, newStatus, additionalDa
         await updateDoc(orderRef, updateData);
         console.log(`[updateOrderStatus] Order status updated successfully to ${newStatus}`);
         return true;
+    };
+
+    try {
+        return await retryOperation(updateOperation, 3, 1000);
     } catch (error) {
-        console.error(`[updateOrderStatus] Error updating order status:`, error);
+        console.error(`[updateOrderStatus] Error updating order status after retries:`, error);
         return false;
     }
 };
