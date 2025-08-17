@@ -16,6 +16,7 @@ const CONFIG = {
 };
 
 
+// Updated ReceiptData interface
 export interface ReceiptData {
   orderId: string;
   items: Array<{
@@ -23,19 +24,23 @@ export interface ReceiptData {
     name: string;
     price: number;
     quantity: number;
+    variations?: any[];
+    addons?: any[];
   }>;
   total: number;
   paymentMethod: string;
   timestamp: Date;
   customerInfo?: {
     name: string;
-    email: string;
+    phone?: string;
+    address?: string;
+    region?: string;
   };
   storeInfo?: {
     name: string;
     address: string;
     phone: string;
-    taxId?: string;
+    email?: string;
   };
 }
 
@@ -187,7 +192,7 @@ private async printReal(receiptData: ReceiptData): Promise<void> {
     await this.SunmiPrinter.prepare();
     
     // Just print the header
-    await this.SunmiPrinter.printText(`=== ${receiptData.storeInfo?.name || 'AFOUD'} ===\n`);
+    await this.SunmiPrinter.printText(`=== ${receiptData.storeInfo?.name || 'Afood'} ===\n`);
     await this.SunmiPrinter.printText('\n');
     
     // Print the formatted receipt
@@ -247,51 +252,83 @@ async getPrinterStatus(): Promise<PrinterStatus> {
   }
 }
 
-  private formatReceiptText(receiptData: ReceiptData): string {
-    const { orderId, items, total, paymentMethod, timestamp, customerInfo, storeInfo } = receiptData;
-    
-    let receipt = '';
-    
-    if (storeInfo) {
-      receipt += `${storeInfo.address}\n`;
-      receipt += `Tel: ${storeInfo.phone}\n`;
-      receipt += '--------------------------------\n';
-    }
-    
-    receipt += `Commande: #${orderId.slice(-6)}\n`;
-    receipt += `Date: ${timestamp.toLocaleDateString('fr-FR')} ${timestamp.toLocaleTimeString('fr-FR')}\n`;
-    
-    if (customerInfo?.name) {
-      receipt += `Client: ${customerInfo.name}\n`;
-    }
-    
-    receipt += '================================\n';
-    
-    items.forEach(item => {
-      const itemLine = `${item.quantity}x ${item.name}`;
-      const priceLine = `${(item.price * item.quantity).toFixed(2)} DH`;
-      const padding = 32 - itemLine.length - priceLine.length;
-      receipt += `${itemLine}${' '.repeat(Math.max(1, padding))}${priceLine}\n`;
-    });
-    
+  // Updated formatReceiptText method
+private formatReceiptText(receiptData: ReceiptData): string {
+  const { orderId, items, total, paymentMethod, timestamp, customerInfo, storeInfo } = receiptData;
+  
+  let receipt = '';
+  
+  if (storeInfo) {
+    receipt += `${storeInfo.name}\n`;
+    receipt += `${storeInfo.address}\n`;
+    receipt += `Tel: ${storeInfo.phone}\n`;
     receipt += '--------------------------------\n';
-    
-    const totalLabel = "TOTAL:";
-    const totalValue = `${total.toFixed(2)} DH`;
-    let padding = 32 - totalLabel.length - totalValue.length;
-    receipt += `${totalLabel}${' '.repeat(Math.max(1, padding))}${totalValue}\n`;
-
-    const paymentLabel = "Paiement:";
-    const paymentValue = `${paymentMethod}`;
-    padding = 32 - paymentLabel.length - paymentValue.length;
-    receipt += `${paymentLabel}${' '.repeat(Math.max(1, padding))}${paymentValue}\n`;
-
-    receipt += '================================\n';
-    receipt += '           MERCI !\n';
-    receipt += '      www.afoud.ma\n';
-    
-    return receipt;
   }
+  
+  receipt += `Commande: #${orderId.slice(-6)}\n`;
+  receipt += `Date: ${timestamp.toLocaleDateString('fr-FR')} ${timestamp.toLocaleTimeString('fr-FR')}\n`;
+  
+  if (customerInfo?.name) {
+    receipt += `Client: ${customerInfo.name}\n`;
+  }
+  
+  if (customerInfo?.phone) {
+    receipt += `Tel: ${customerInfo.phone}\n`;
+  }
+  
+  if (customerInfo?.address) {
+    receipt += `Adresse: ${customerInfo.address}\n`;
+  }
+  
+  if (customerInfo?.region) {
+    receipt += `Region: ${customerInfo.region}\n`;
+  }
+  
+  receipt += '================================\n';
+  
+  items.forEach(item => {
+    const itemLine = `${item.quantity}x ${item.name}`;
+    const priceLine = `${(item.price * item.quantity).toFixed(2)} DH`;
+    const padding = 32 - itemLine.length - priceLine.length;
+    receipt += `${itemLine}${' '.repeat(Math.max(1, padding))}${priceLine}\n`;
+    
+    // Add variations
+    if (item.variations && item.variations.length > 0) {
+      item.variations.forEach(variation => {
+        const varName = variation.name || variation;
+        receipt += `  • ${varName}\n`;
+      });
+    }
+    
+    // Add addons
+    if (item.addons && item.addons.length > 0) {
+      item.addons.forEach(addon => {
+        const addonName = addon.name || addon;
+        receipt += `  + ${addonName}\n`;
+      });
+    }
+  });
+  
+  receipt += '--------------------------------\n';
+  
+  const totalLabel = "TOTAL:";
+  const totalValue = `${total.toFixed(2)} DH`;
+  let padding = 32 - totalLabel.length - totalValue.length;
+  receipt += `${totalLabel}${' '.repeat(Math.max(1, padding))}${totalValue}\n`;
+
+  const paymentLabel = "Paiement:";
+  const paymentValue = `${paymentMethod}`;
+  padding = 32 - paymentLabel.length - paymentValue.length;
+  receipt += `${paymentLabel}${' '.repeat(Math.max(1, padding))}${paymentValue}\n`;
+
+  receipt += '================================\n';
+   receipt += '        www.afood.ma \n';
+  receipt += '          MERCI !\n';
+  receipt += '      Bonne journée!\n';
+  receipt += '================================\n';
+  
+  return receipt;
+}
 }
 
 export const printerService = new PrinterService();

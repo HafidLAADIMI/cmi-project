@@ -114,14 +114,14 @@ export const Order = {
             driverId: orderData.driverId || null,
 
             // Customer details
-            customerName: orderData.userEmail || '',
+            customerEmail: orderData.userEmail || '',
+            customerName: orderData.customerName || '',
             customerPhone: orderData.phoneNumber || orderData.customerPhone || '',
 
             // Address handling
-            address: orderData.address?.address ||
-                orderData.deliveryAddress ||
+            region: orderData.deliveryAddress ||
                 (orderData.deliveryLocation ? orderData.deliveryLocation.address : '') || '',
-
+            address : orderData.deliveryLocation,
             // Delivery instructions
             deliveryInstructions: orderData.address?.instructions ||
                 orderData.additionalNote ||

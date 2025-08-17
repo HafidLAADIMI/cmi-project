@@ -7,6 +7,7 @@ import { CONFIG } from '../constants/config';
 import { printerService } from '../services/printerService';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { CustomAlert } from '../components/CustomAlert';
+import { OrderDetailModal } from '../components/OrderDetailModal';
 import { getOrders, Order, updateOrderStatus } from '../services/orderService';
 
 interface RealFirebaseOrder {
@@ -51,6 +52,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState<RealFirebaseOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<RealFirebaseOrder | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
   const [alert, setAlert] = useState({
     visible: false,
     title: '',
@@ -76,9 +78,10 @@ export default function HomeScreen() {
       
       setOrders(pendingOrders);
       
-      if (pendingOrders.length > 0 && !selectedOrder) {
-        setSelectedOrder(pendingOrders[0]);
-      }
+      // Don't auto-select anymore - let user choose
+      // if (pendingOrders.length > 0 && !selectedOrder) {
+      //   setSelectedOrder(pendingOrders[0]);
+      // }
     } catch (error) {
       console.error('❌ Erreur lors du chargement des commandes:', error);
     }
@@ -139,20 +142,35 @@ export default function HomeScreen() {
           id: item.id,
           name: item.name,
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          // Add variations and addons
+          variations: item.variations || item.selectedVariations || [],
+          addons: item.addons || item.selectedAddons || []
         })),
         total: selectedOrder.total,
         paymentMethod: 'Espèces',
         timestamp: new Date(),
         customerInfo: {
-          name: selectedOrder.customerName,
-          email: selectedOrder.customerPhone,
+          name: selectedOrder.customerName || selectedOrder.userEmail || 'Client',
+          phone: selectedOrder.customerPhone || selectedOrder.phoneNumber || 'N/A', // Fixed: was email before!
+          address: (() => {
+            if (typeof selectedOrder.address === 'object' && selectedOrder.address) {
+              return selectedOrder.address.address || selectedOrder.address.region || 'Adresse non disponible';
+            }
+            return selectedOrder.address || 'Adresse non disponible';
+          })(),
+          region: (() => {
+            if (selectedOrder.region) return selectedOrder.region;
+            if (typeof selectedOrder.address === 'object' && selectedOrder.address?.region) {
+              return selectedOrder.address.region;
+            }
+            return 'Région non disponible';
+          })()
         },
         storeInfo: {
-          name: 'AFOUD - Plateforme de Livraison',
-          address: 'Marrakech, Maroc',
-          phone: '+212 XXX XXX XXX',
-          taxId: 'AFOUD123456789',
+          name: 'AFOOD RESTAURANT',
+          address: 'Casablanca, Maroc',
+          phone: '+212671117076',
         }
       };
       
@@ -175,6 +193,9 @@ export default function HomeScreen() {
       // Recharger les commandes
       await loadOrders();
       
+      // Clear selected order since it's now processed
+      setSelectedOrder(null);
+      
     } catch (error) {
       console.error('💥 Erreur paiement espèces:', error);
       
@@ -193,10 +214,22 @@ export default function HomeScreen() {
   };
 
   const selectOrder = (order: RealFirebaseOrder) => {
+    console.log('🔍 Selected order:', order); // Debug log
     setSelectedOrder(order);
+    setShowOrderModal(true);
     if (CONFIG.FEATURES.HAPTIC_FEEDBACK) {
       Haptics.selectionAsync();
     }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedOrder) {
+      console.log('❌ No selected order for payment');
+      return;
+    }
+    console.log('💰 Processing payment for order:', selectedOrder.id);
+    setShowOrderModal(false);
+    await handleCashPayment();
   };
 
   return (
@@ -224,10 +257,10 @@ export default function HomeScreen() {
             />
             <View className="flex-1">
               <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center">
-                AFOUD
+                AFOOD
               </Text>
               <Text className="text-gray-600 dark:text-gray-400 text-center mt-1">
-                Terminal de Paiement
+                RESTAURANT
               </Text>
             </View>
           </View>
@@ -248,24 +281,13 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={order.id}
                 onPress={() => selectOrder(order)}
-                className={`p-4 rounded-2xl border-2 mb-3 ${
-                  selectedOrder?.id === order.id 
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                    : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
-                }`}
+                className="p-4 rounded-2xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 mb-3"
               >
                 <View className="flex-row justify-between items-start">
                   <View className="flex-1">
-                    <View className="flex-row items-center mb-2">
-                      <Text className="font-bold text-gray-900 dark:text-white text-lg">
-                        #{order.id.slice(-6)}
-                      </Text>
-                      {selectedOrder?.id === order.id && (
-                        <View className="ml-2 bg-blue-500 rounded-full px-2 py-1">
-                          <Text className="text-white text-xs font-bold">SÉLECTIONNÉE</Text>
-                        </View>
-                      )}
-                    </View>
+                    <Text className="font-bold text-gray-900 dark:text-white text-lg mb-2">
+                      #{order.id.slice(-6)}
+                    </Text>
                     
                     <Text className="text-gray-700 dark:text-gray-300 font-medium mb-1">
                       👤 {order.customerName}
@@ -282,6 +304,9 @@ export default function HomeScreen() {
                     <Text className="text-2xl font-bold text-blue-600 mb-1">
                       {order.total.toFixed(2)} DH
                     </Text>
+                    <View className="bg-blue-100 rounded-full px-2 py-1">
+                      <Text className="text-blue-600 text-xs font-bold">VOIR DÉTAILS</Text>
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -304,53 +329,17 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* Bouton de Paiement */}
-        <Animated.View
-          entering={FadeInDown.delay(300)}
-          className="bg-green-600 rounded-3xl p-6"
-          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
-        >
-          <View className="flex-row items-center justify-between mb-4">
-            <View>
-              <Text className="text-white/80 text-sm font-medium">Paiement Direct</Text>
-              <Text className="text-white text-xl font-bold">Espèces</Text>
-            </View>
-            <View className="bg-white/20 rounded-2xl p-3">
-              <Text className="text-3xl">💵</Text>
-            </View>
-          </View>
-
-          <View className="bg-white/10 rounded-2xl p-4 mb-4">
-            <Text className="text-white/80 text-sm font-medium mb-2">Montant à Encaisser</Text>
-            <Text className="text-white text-3xl font-bold">
-              {selectedOrder?.total.toFixed(2) || '0.00'} <Text className="text-xl">DH</Text>
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            onPress={handleCashPayment}
-            disabled={loading || !selectedOrder}
-            className="bg-white py-4 px-6 rounded-2xl disabled:opacity-50"
-          >
-            <View className="flex-row items-center justify-center">
-              {loading ? (
-                <>
-                  <View className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-3" />
-                  <Text className="text-green-700 font-bold text-lg">Traitement...</Text>
-                </>
-              ) : (
-                <>
-                  <Text className="text-2xl mr-3">🖨️</Text>
-                  <Text className="text-green-700 font-bold text-lg">
-                    Encaisser & Imprimer
-                  </Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
+        {/* Remove the payment button section since payment is now in modal */}
       </View>
        
+      <OrderDetailModal
+        isVisible={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        onConfirmPayment={handleConfirmPayment}
+        order={selectedOrder}
+        loading={loading}
+      />
+      
       <LoadingOverlay 
         visible={loading} 
         message="Traitement du paiement..." 

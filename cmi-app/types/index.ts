@@ -28,3 +28,29 @@ export interface AlertProps {
   onClose: () => void;
   type?: 'info' | 'success' | 'error' | 'warning';
 }
+export interface ReceiptData {
+  orderId: string;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    variations?: any[];
+    addons?: any[];
+  }>;
+  total: number;
+  paymentMethod: string;
+  timestamp: Date;
+  customerInfo?: {
+    name: string;
+    phone?: string;
+    address?: string;
+    region?: string;
+  };
+  storeInfo?: {
+    name: string;
+    address: string;
+    phone: string;
+    email?: string;
+  };
+}
